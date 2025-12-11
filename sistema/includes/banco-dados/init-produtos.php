@@ -1,9 +1,5 @@
 <?php
-// Conexão (ajuste o caminho se necessário)
-$dbPath = __DIR__ . '/loja.db'; 
-$pdo = new PDO("sqlite:$dbPath");
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->exec('PRAGMA foreign_keys = ON;');
+require_once __DIR__ . '/db.php';
 
 // 1. Tabela Principal de Produtos
 $pdo->exec("CREATE TABLE IF NOT EXISTS produtos (
@@ -15,15 +11,15 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS produtos (
     tipo_produto TEXT,
     codigo_barras TEXT,
     estoque_minimo INTEGER DEFAULT 5,
-    tem_validade INTEGER DEFAULT 0, -- 0: Não, 1: Sim
+    tem_validade INTEGER DEFAULT 0,
     data_validade DATE,
     ativo INTEGER DEFAULT 1,
-    auto_desativar INTEGER DEFAULT 0, -- Se estoque acabar, desativa
+    auto_desativar INTEGER DEFAULT 0,
     imagem_capa TEXT,
     data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
 )");
 
-// 2. Tabela de Variações (Ex: Camiseta Preta M, Camiseta Branca G)
+// 2. Tabela de Variações
 $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_variacoes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     produto_id INTEGER,
@@ -34,7 +30,7 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_variacoes (
     FOREIGN KEY(produto_id) REFERENCES produtos(id) ON DELETE CASCADE
 )");
 
-// 3. Tabela de Galeria de Imagens
+// 3. Tabela de Galeria
 $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_galeria (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     produto_id INTEGER,
@@ -42,4 +38,4 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_galeria (
     FOREIGN KEY(produto_id) REFERENCES produtos(id) ON DELETE CASCADE
 )");
 
-?>
+echo "Tabelas de produtos criadas com sucesso!";
