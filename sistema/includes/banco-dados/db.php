@@ -42,4 +42,24 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_galeria (
     FOREIGN KEY(produto_id) REFERENCES produtos(id) ON DELETE CASCADE
 )");
 
+
+
+// 4. Tabela de Serviços (garante owner_id)
+$pdo->exec("CREATE TABLE IF NOT EXISTS servicos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT
+    -- outras colunas serão adicionadas conforme necessário
+)");
+// Só adiciona a coluna owner_id se ela não existir
+$colunasServicos = $pdo->query("PRAGMA table_info(servicos)")->fetchAll(PDO::FETCH_ASSOC);
+$temOwnerId = false;
+foreach ($colunasServicos as $col) {
+    if (strtolower($col['name']) === 'owner_id') {
+        $temOwnerId = true;
+        break;
+    }
+}
+if (!$temOwnerId) {
+    $pdo->exec("ALTER TABLE servicos ADD COLUMN owner_id INTEGER");
+}
+
 ?>
