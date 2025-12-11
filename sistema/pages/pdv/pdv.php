@@ -110,18 +110,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 // ==========================================
 // 3. DADOS INICIAIS
 // ==========================================
-// Filtrar produtos e clientes pelo owner_id do usuário logado
+
+// Filtrar produtos, serviços e clientes pelo owner_id do usuário logado
 $owner_id = $_SESSION['user_id'];
 
 $sqlProd = "SELECT p.id, p.nome, p.marca, p.modelo, p.imagem_capa, 
             p.preco, p.desconto, v.id as var_id, v.cor, v.tamanho, v.estoque 
             FROM produtos p 
             JOIN produtos_variacoes v ON v.produto_id = p.id 
-            WHERE p.ativo = 1 AND v.estoque > 0 AND p.owner_id = :owner_id
+            WHERE p.ativo = 1 AND v.estoque > 0 AND (p.owner_id = :owner_id OR p.owner_id IS NULL)
             ORDER BY p.nome";
 $stmtProd = $pdo->prepare($sqlProd);
 $stmtProd->execute([':owner_id' => $owner_id]);
 $produtos = $stmtProd->fetchAll(PDO::FETCH_ASSOC);
+
+// Buscar serviços ativos
+$sqlServ = "SELECT id, nome, categoria, descricao, preco, imagem, duracao_minutos FROM servicos WHERE ativo = 1 AND (owner_id = :owner_id OR owner_id IS NULL) ORDER BY nome";
+$stmtServ = $pdo->prepare($sqlServ);
+$stmtServ->execute([':owner_id' => $owner_id]);
+$servicos = $stmtServ->fetchAll(PDO::FETCH_ASSOC);
 
 $stmtCli = $pdo->prepare("SELECT id, nome, cpf FROM clientes WHERE owner_id = :owner_id ORDER BY nome");
 $stmtCli->execute([':owner_id' => $owner_id]);
@@ -419,24 +426,50 @@ $clientes = $stmtCli->fetchAll(PDO::FETCH_ASSOC);
                 <input type="text" id="searchBox" class="search-input" placeholder="Buscar produto (nome, cor, código)..." onkeyup="filtrarProdutos()">
             </div>
 
-            <div class="products-grid">
-                <?php foreach($produtos as $p): 
-                    $img = !empty($p['imagem_capa']) ? '../../assets/uploads/produtos/'.$p['imagem_capa'] : 'https://via.placeholder.com/200x120?text=Sem+Foto';
-                    $dataSearch = strtolower($p['nome'].' '.$p['marca'].' '.$p['cor'].' '.$p['tamanho']);
-                ?>
-                <div class="product-card" data-search="<?php echo $dataSearch; ?>" onclick="addItem(<?php echo htmlspecialchars(json_encode($p)); ?>)">
-                    <img src="<?php echo $img; ?>" class="p-image">
-                    <div class="p-info">
-                        <div class="p-name"><?php echo htmlspecialchars($p['nome']); ?></div>
-                        <div class="p-desc"><?php echo htmlspecialchars($p['marca'] . ' - ' . $p['cor'] . ' ' . $p['tamanho']); ?></div>
-                        <div class="p-stock">Estoque: <?php echo $p['estoque']; ?></div>
-                        <div class="p-preco">Preço: R$ <?php echo isset($p['preco']) ? number_format($p['preco'], 2, ',', '.') : '-'; ?></div>
-                        <?php if(isset($p['desconto']) && $p['desconto'] > 0): ?>
-                            <div class="p-desconto">Desconto: R$ <?php echo number_format($p['desconto'], 2, ',', '.'); ?></div>
-                        <?php endif; ?>
+            <div style="display:flex; gap:30px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:320px;">
+                    <h3 style="margin:10px 0 5px 0; font-size:1.1rem; color:#6366f1;">Produtos</h3>
+                    <div class="products-grid">
+                        <?php foreach($produtos as $p): 
+                            $img = !empty($p['imagem_capa']) ? '../../assets/uploads/produtos/'.$p['imagem_capa'] : 'https://via.placeholder.com/200x120?text=Sem+Foto';
+                            $dataSearch = strtolower($p['nome'].' '.$p['marca'].' '.$p['cor'].' '.$p['tamanho']);
+                        ?>
+                        <div class="product-card" data-search="<?php echo $dataSearch; ?>" onclick="addItem(<?php echo htmlspecialchars(json_encode($p)); ?>)">
+                            <img src="<?php echo $img; ?>" class="p-image">
+                            <div class="p-info">
+                                <div class="p-name"><?php echo htmlspecialchars($p['nome']); ?></div>
+                                <div class="p-desc"><?php echo htmlspecialchars($p['marca'] . ' - ' . $p['cor'] . ' ' . $p['tamanho']); ?></div>
+                                <div class="p-stock">Estoque: <?php echo $p['estoque']; ?></div>
+                                <div class="p-preco">Preço: R$ <?php echo isset($p['preco']) ? number_format($p['preco'], 2, ',', '.') : '-'; ?></div>
+                                <?php if(isset($p['desconto']) && $p['desconto'] > 0): ?>
+                                    <div class="p-desconto">Desconto: R$ <?php echo number_format($p['desconto'], 2, ',', '.'); ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
-                <?php endforeach; ?>
+                <div style="flex:1; min-width:320px;">
+                    <h3 style="margin:10px 0 5px 0; font-size:1.1rem; color:#16a34a;">Serviços</h3>
+                    <div class="products-grid">
+                        <?php foreach($servicos as $s): 
+                            $img = !empty($s['imagem']) ? '../../assets/uploads/servicos/'.$s['imagem'] : 'https://via.placeholder.com/200x120?text=Serviço';
+                            $dataSearch = strtolower($s['nome'].' '.$s['categoria']);
+                        ?>
+                        <div class="product-card" data-search="<?php echo $dataSearch; ?>" onclick="addServico(<?php echo htmlspecialchars(json_encode($s)); ?>)">
+                            <img src="<?php echo $img; ?>" class="p-image">
+                            <div class="p-info">
+                                <div class="p-name"><?php echo htmlspecialchars($s['nome']); ?></div>
+                                <div class="p-desc"><?php echo htmlspecialchars($s['categoria']); ?></div>
+                                <div class="p-preco">Preço: R$ <?php echo number_format($s['preco'], 2, ',', '.'); ?></div>
+                                <?php if(!empty($s['duracao_minutos'])): ?>
+                                    <div class="p-stock">Duração: <?php echo $s['duracao_minutos']; ?> min</div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -513,8 +546,9 @@ $clientes = $stmtCli->fetchAll(PDO::FETCH_ASSOC);
     let cart = [];
 
     // --- LÓGICA DO CARRINHO ---
+
     function addItem(p) {
-        const idUniq = p.id + '-' + p.var_id;
+        const idUniq = 'prod-' + p.id + '-' + p.var_id;
         const exists = cart.find(i => i.uid === idUniq);
 
         if(exists) {
@@ -531,8 +565,27 @@ $clientes = $stmtCli->fetchAll(PDO::FETCH_ASSOC);
                 nome_produto: p.nome,
                 cor: p.cor,
                 tamanho: p.tamanho,
-                preco_unit: 0, // Definir preço aqui se vier do banco
-                quantidade: 1
+                preco_unit: p.preco ? p.preco : 0,
+                quantidade: 1,
+                tipo: 'produto'
+            });
+        }
+        renderCart();
+    }
+
+    function addServico(s) {
+        const idUniq = 'serv-' + s.id;
+        const exists = cart.find(i => i.uid === idUniq);
+        if(exists) {
+            exists.quantidade++;
+        } else {
+            cart.push({
+                uid: idUniq,
+                servico_id: s.id,
+                nome_produto: s.nome,
+                preco_unit: s.preco,
+                quantidade: 1,
+                tipo: 'servico'
             });
         }
         renderCart();
