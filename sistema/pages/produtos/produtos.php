@@ -206,14 +206,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
         // Salvar variações
         if (isset($_POST['var_cor'])) {
-            $stmtVar = $pdo->prepare("INSERT INTO produtos_variacoes (produto_id, cor, tamanho, peso, estoque) VALUES (?, ?, ?, ?, ?)");
+            $stmtVar = $pdo->prepare("INSERT INTO produtos_variacoes (produto_id, cor, tamanho, peso, preco, estoque) VALUES (?, ?, ?, ?, ?, ?)");
             foreach ($_POST['var_cor'] as $key => $cor) {
-                $tam  = $_POST['var_tam'][$key];
-                $peso = $_POST['var_peso'][$key];
-                $qtd  = $_POST['var_qtd'][$key];
+                $tam   = $_POST['var_tam'][$key];
+                $peso  = $_POST['var_peso'][$key];
+                $qtd   = $_POST['var_qtd'][$key];
+                $preco = $_POST['var_preco'][$key];
 
-                if ($cor && $qtd !== '') {
-                    $stmtVar->execute([$produtoId, $cor, $tam, $peso, $qtd]);
+                if ($cor && $qtd !== '' && $preco !== '') {
+                    $stmtVar->execute([$produtoId, $cor, $tam, $peso, $preco, $qtd]);
                 }
             }
         }
@@ -522,10 +523,12 @@ $listaProdutos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 </div>
 
+                <div style="display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 40px; gap:10px; font-size:0.9rem; margin-bottom:8px; color:#64748b;">
+                    <span>Cor</span><span>Tamanho</span><span>Peso</span><span>Qtd</span><span>Preço</span><span></span>
+                </div>
                 <div id="variacoes-container"></div>
-
                 <button type="button" onclick="addVariationRow()" style="margin-top:10px; background:none; border:1px dashed #6366f1; color:#6366f1; width:100%; padding:10px; border-radius:8px; cursor:pointer;">
-                    + Adicionar Cor/Tamanho
+                    + Adicionar Variação
                 </button>
             </div>
 
@@ -642,7 +645,7 @@ $listaProdutos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // Variações dinâmicas
-    function addVariationRow(cor = '', tam = '', peso = '', qtd = '') {
+    function addVariationRow(cor = '', tam = '', peso = '', qtd = '', preco = '') {
         const container = document.getElementById('variacoes-container');
         const div = document.createElement('div');
         div.className = 'var-row';
@@ -651,6 +654,7 @@ $listaProdutos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
             <input type="text" name="var_tam[]" value="${tam}" placeholder="Tam (P, M)" class="input-control">
             <input type="number" name="var_peso[]" value="${peso}" placeholder="Kg" class="input-control" step="0.01">
             <input type="number" name="var_qtd[]" value="${qtd}" placeholder="Qtd" class="input-control" min="0" required>
+            <input type="number" name="var_preco[]" value="${preco}" placeholder="Preço" class="input-control" min="0" step="0.01" required>
             <button type="button" onclick="this.parentElement.remove()" style="color:red; border:none; background:none; cursor:pointer;"><i class="bi bi-trash"></i></button>
         `;
         container.appendChild(div);
