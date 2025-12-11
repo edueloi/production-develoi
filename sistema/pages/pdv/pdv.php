@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 $owner_id = $_SESSION['user_id'];
 
 $sqlProd = "SELECT p.id, p.nome, p.marca, p.modelo, p.imagem_capa, 
-            v.id as var_id, v.cor, v.tamanho, v.estoque 
+            p.preco, p.desconto, v.id as var_id, v.cor, v.tamanho, v.estoque 
             FROM produtos p 
             JOIN produtos_variacoes v ON v.produto_id = p.id 
             WHERE p.ativo = 1 AND v.estoque > 0 AND p.owner_id = :owner_id
@@ -430,6 +430,10 @@ $clientes = $stmtCli->fetchAll(PDO::FETCH_ASSOC);
                         <div class="p-name"><?php echo htmlspecialchars($p['nome']); ?></div>
                         <div class="p-desc"><?php echo htmlspecialchars($p['marca'] . ' - ' . $p['cor'] . ' ' . $p['tamanho']); ?></div>
                         <div class="p-stock">Estoque: <?php echo $p['estoque']; ?></div>
+                        <div class="p-preco">Preço: R$ <?php echo isset($p['preco']) ? number_format($p['preco'], 2, ',', '.') : '-'; ?></div>
+                        <?php if(isset($p['desconto']) && $p['desconto'] > 0): ?>
+                            <div class="p-desconto">Desconto: R$ <?php echo number_format($p['desconto'], 2, ',', '.'); ?></div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>

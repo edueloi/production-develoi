@@ -374,7 +374,7 @@ function isActive($paths) {
     <div class="sidebar-header">
         <a href="<?php echo $baseUrl; ?>/pages/painel/index.php" class="logo-area">
             <div class="logo-icon"><i class="bi bi-box-seam-fill"></i></div>
-            <span class="logo-text">Lumina ERP</span>
+            <span class="logo-text">Sistema ERP</span>
         </a>
     </div>
 
