@@ -108,9 +108,21 @@ if (isset($_GET['api_acao'])) {
     exit;
 }
 
+
 // ------------------------------------------
 // 1.2 PÁGINA NORMAL (HTML + MENU)
 // ------------------------------------------
+?>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Produtos</title>
+    <link rel="stylesheet" href="../../assets/css/admin.css">
+</head>
+<body>
+<?php
 include_once '../../includes/menu.php';
 
 // --- PROCESSAR FORMULÁRIO (SALVAR / ATUALIZAR) ---
@@ -246,7 +258,6 @@ $sql = "SELECT p.*,
         ORDER BY p.id DESC";
 $listaProdutos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
 <style>
     :root { --primary-color: #6366f1; --bg-glass: rgba(255,255,255,0.9); }
 
@@ -810,4 +821,7 @@ $listaProdutos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
             }
         });
     }
+
 </script>
+</body>
+</html>
