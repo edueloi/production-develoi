@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    /* ========== 4. NAV LINKS ACTIVE (SCROLL SUAVE OPCIONAL) ========== */
+    /* ========== 4. NAV LINKS ACTIVE (SCROLL SUAVE) ========== */
     const navLinks = document.querySelectorAll('.nav-link');
 
     navLinks.forEach(link => {
@@ -143,16 +143,43 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-        /* ========== 9. CHATBOT WHATSAPP ========== */
+    /* ========== 9. CHATBOT WHATSAPP (COM FORMULÁRIO) ========== */
     const whatsappNumber = '5515992675429'; // 55 + 15 + 992675429
 
     const chatbotToggle = document.getElementById('chatbot-toggle');
     const chatbotWidget = document.getElementById('chatbot-widget');
     const chatbotClose = document.getElementById('chatbot-close');
 
+    const stepOptions = document.getElementById('chatbot-step-options');
+    const stepForm = document.getElementById('chatbot-step-form');
+
+    const chatbotForm = document.getElementById('chatbot-form');
+    const inputName = document.getElementById('chat-name');
+    const inputPhone = document.getElementById('chat-phone');
+    const inputCity = document.getElementById('chat-city');
+    const inputReason = document.getElementById('chat-reason');
+    const inputMessage = document.getElementById('chat-message');
+    const btnBack = document.getElementById('chatbot-back');
+    const footerBtn = document.querySelector('.chatbot-footer-btn');
+
+    let selectedReason = '';
+
+    function showStep(step) {
+        if (stepOptions) stepOptions.classList.remove('active');
+        if (stepForm) stepForm.classList.remove('active');
+
+        if (step === 'options' && stepOptions) {
+            stepOptions.classList.add('active');
+        }
+        if (step === 'form' && stepForm) {
+            stepForm.classList.add('active');
+        }
+    }
+
     function openChatbot() {
         if (chatbotWidget) {
             chatbotWidget.classList.add('open');
+            showStep('options'); // sempre começa nas opções
         }
     }
 
@@ -188,21 +215,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Função para abrir WhatsApp com a mensagem
     function openWhatsAppWithMessage(message) {
-        const text = encodeURIComponent(message + ' (enviado pelo site da Vogan Store)');
+        const text = encodeURIComponent(message);
         const url = `https://wa.me/${whatsappNumber}?text=${text}`;
         window.open(url, '_blank');
     }
 
-    // Opções do chatbot
+    // Clique nas opções da ETAPA 1 → vai para o formulário
     document.querySelectorAll('.chatbot-option').forEach(option => {
         option.addEventListener('click', () => {
-            const text = option.getAttribute('data-text') || 'Olá, vim do site da Vogan Store.';
-            openWhatsAppWithMessage(text);
+            selectedReason = option.getAttribute('data-reason') || 'Atendimento Vogan Store';
+            if (inputReason) {
+                inputReason.value = selectedReason;
+            }
+            showStep('form');
         });
     });
 
-    // Botão do rodapé (falar direto com atendente)
-    const footerBtn = document.querySelector('.chatbot-footer-btn');
+    // Botão VOLTAR → volta para as opções
+    if (btnBack) {
+        btnBack.addEventListener('click', () => {
+            showStep('options');
+        });
+    }
+
+    // Submit do formulário → monta mensagem e abre Whats
+    if (chatbotForm) {
+        chatbotForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const name = inputName?.value.trim() || '';
+            const phone = inputPhone?.value.trim() || '';
+            const city = inputCity?.value.trim() || '';
+            const reason = inputReason?.value.trim() || selectedReason || 'Atendimento Vogan Store';
+            const msgExtra = inputMessage?.value.trim() || '';
+
+            let message = `Olá, vim do site da Vogan Store.\n\n`;
+
+            if (name) message += `Nome: ${name}\n`;
+            if (phone) message += `WhatsApp/Telefone: ${phone}\n`;
+            if (city) message += `Cidade/Bairro: ${city}\n`;
+            if (reason) message += `Motivo do contato: ${reason}\n`;
+
+            if (msgExtra) {
+                message += `\nMensagem: ${msgExtra}\n`;
+            }
+
+            message += `\n(Enviado automaticamente pelo assistente do site)`;
+
+            openWhatsAppWithMessage(message);
+        });
+    }
+
+    // Botão do rodapé (falar direto com atendente, sem formulário)
     if (footerBtn) {
         footerBtn.addEventListener('click', () => {
             const text = footerBtn.getAttribute('data-text') || 'Olá, preciso de atendimento humano da Vogan Store.';
@@ -210,4 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Garante que, ao carregar, a etapa inicial é a de opções
+    showStep('options');
 });

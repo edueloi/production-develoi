@@ -485,71 +485,127 @@
         </section>
     </main>
 
-    <!-- BOTÃO FLOTANTE WHATSAPP (ABRE CHATBOT) -->
-    <button type="button" class="fab-whatsapp" id="chatbot-toggle">
-        <i class="fa-brands fa-whatsapp"></i>
-    </button>
+   <!-- BOTÃO FLOTANTE WHATSAPP (ABRE CHATBOT) -->
+<button type="button" class="fab-whatsapp" id="chatbot-toggle">
+    <i class="fa-brands fa-whatsapp"></i>
+</button>
 
-    <!-- CHATBOT WHATSAPP VOGAN -->
-    <div class="chatbot-widget" id="chatbot-widget">
-        <div class="chatbot-header">
-            <div class="chatbot-header-left">
-                <div class="chatbot-avatar">
-                    <i class="fa-solid fa-bolt"></i>
-                </div>
-                <div>
-                    <h4>Atendimento Vogan</h4>
-                    <span>Respostas rápidas via WhatsApp</span>
-                </div>
+<!-- CHATBOT WHATSAPP VOGAN -->
+<div class="chatbot-widget" id="chatbot-widget">
+    <div class="chatbot-header">
+        <div class="chatbot-header-left">
+            <div class="chatbot-avatar">
+                <i class="fa-solid fa-bolt"></i>
             </div>
-            <button class="chatbot-close" id="chatbot-close">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <div>
+                <h4>Atendimento Vogan</h4>
+                <span>Coletando seus dados para agilizar no Whats</span>
+            </div>
         </div>
+        <button class="chatbot-close" id="chatbot-close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
 
-        <div class="chatbot-body">
+    <div class="chatbot-body">
+        <!-- ETAPA 1: OPCÕES RÁPIDAS -->
+        <div class="chatbot-step chatbot-step-options" id="chatbot-step-options">
             <div class="chatbot-bubble bot">
                 <p>Oi! 👋 Sou o assistente da Vogan Store.</p>
             </div>
             <div class="chatbot-bubble bot">
-                <p>Escolha uma opção abaixo e vou abrir o WhatsApp já com a mensagem pronta pra você:</p>
+                <p>Me conta rapidinho o que você precisa. Depois vou te pedir alguns dados e abrir o WhatsApp já preenchido pra você.</p>
             </div>
 
             <div class="chatbot-options">
-                <button class="chatbot-option" data-text="Olá, vim do site da Vogan Store e quero ajuda para montar um setup gamer completo.">
+                <button class="chatbot-option" data-reason="Montar setup completo">
                     <span>🎮 Montar setup completo</span>
                     <small>Teclado, mouse, headset e mais</small>
                 </button>
 
-                <button class="chatbot-option" data-text="Olá, vim do site da Vogan Store e quero saber os valores e formas de pagamento dos produtos.">
+                <button class="chatbot-option" data-reason="Saber valores e formas de pagamento">
                     <span>💸 Valores e formas de pagamento</span>
                     <small>Pix, cartão, parcelamento, etc.</small>
                 </button>
 
-                <button class="chatbot-option" data-text="Olá, vim do site da Vogan Store e tenho dúvidas sobre um produto específico.">
-                    <span>❓ Dúvida sobre um produto</span>
+                <button class="chatbot-option" data-reason="Dúvida sobre um produto específico">
+                    <span>❓ Dúvida sobre produto</span>
                     <small>Garantia, compatibilidade, recomendações</small>
                 </button>
 
-                <button class="chatbot-option" data-text="Olá, vim do site da Vogan Store e quero falar com a loja física.">
+                <button class="chatbot-option" data-reason="Falar com a loja física">
                     <span>🏬 Falar com a loja física</span>
-                    <small>Endereço, horário, retirada no balcão</small>
+                    <small>Endereço, retirada, horário</small>
                 </button>
 
-                <button class="chatbot-option" data-text="Olá, vim do site da Vogan Store e quero ver combos e promoções ativas.">
-                    <span>🔥 Ver combos e promoções</span>
+                <button class="chatbot-option" data-reason="Ver combos, promoções e ofertas ativas">
+                    <span>🔥 Combos e promoções</span>
                     <small>Ofertas do dia e descontos</small>
+                </button>
+
+                <button class="chatbot-option" data-reason="Outro assunto">
+                    <span>✉️ Outro assunto</span>
+                    <small>Atendimento geral</small>
                 </button>
             </div>
         </div>
 
-        <div class="chatbot-footer">
-            <span>As mensagens serão enviadas para o WhatsApp oficial da Vogan Store.</span>
-            <button class="chatbot-footer-btn" data-text="Olá, preciso de atendimento humano da Vogan Store.">
-                👤 Falar direto com atendente
-            </button>
+        <!-- ETAPA 2: FORMULÁRIO DE DADOS -->
+        <div class="chatbot-step chatbot-step-form" id="chatbot-step-form">
+            <div class="chatbot-bubble bot">
+                <p>Perfeito! Só vou pegar alguns dados pra gente te atender mais rápido no WhatsApp. 😊</p>
+            </div>
+
+            <form id="chatbot-form">
+                <div class="chatbot-field">
+                    <label for="chat-name">Seu nome completo</label>
+                    <input type="text" id="chat-name" placeholder="Ex: Gabriel Santos" required>
+                </div>
+
+                <div class="chatbot-field">
+                    <label for="chat-phone">WhatsApp / Telefone</label>
+                    <input type="tel" id="chat-phone" placeholder="(15) 9 9999-9999" required>
+                </div>
+
+                <div class="chatbot-field">
+                    <label for="chat-city">Cidade / Bairro</label>
+                    <input type="text" id="chat-city" placeholder="Ex: Tatuí - SP" required>
+                </div>
+
+                <div class="chatbot-field">
+                    <label for="chat-reason">Motivo do contato</label>
+                    <input type="text" id="chat-reason" readonly>
+                </div>
+
+                <div class="chatbot-field">
+                    <label for="chat-message">Conte rápido o que você precisa</label>
+                    <textarea id="chat-message" rows="3" placeholder="Ex: Quero um combo de teclado, mouse e headset para PC e PS5."></textarea>
+                </div>
+
+                <div class="chatbot-actions">
+                    <button type="button" class="btn-chatbot-secondary" id="chatbot-back">
+                        Voltar
+                    </button>
+                    <button type="submit" class="btn-chatbot-primary">
+                        Enviar pelo WhatsApp <i class="fa-brands fa-whatsapp"></i>
+                    </button>
+                </div>
+
+                <p class="chatbot-privacy">
+                    Seus dados serão usados apenas para esse atendimento via WhatsApp.
+                </p>
+            </form>
         </div>
     </div>
+
+    <div class="chatbot-footer">
+        <span>Atendimento oficial Vogan Store no WhatsApp.</span>
+        <button class="chatbot-footer-btn" data-text="Olá, preciso de atendimento humano da Vogan Store.">
+            👤 Falar direto com atendente
+        </button>
+    </div>
+</div>
+
 
 
     <!-- FOOTER -->
