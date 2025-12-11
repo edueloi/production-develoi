@@ -77,10 +77,22 @@ if (isset($_GET['api_acao'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'salvar') {
     $id = !empty($_POST['id']) ? (int)$_POST['id'] : null;
     $dados = [
-        $_POST['nome'], $_POST['apelido'], $_POST['telefone'], $_POST['whatsapp'], $_POST['email'],
-        $_POST['cpf'], $_POST['rg'], $_POST['data_nascimento'] ?: null, 
-        $_POST['cep'], $_POST['logradouro'], $_POST['numero'], $_POST['complemento'],
-        $_POST['bairro'], $_POST['cidade'], $_POST['uf'], $_POST['observacoes'],
+        $_POST['nome'] ?? '',
+        $_POST['apelido'] ?? '',
+        $_POST['telefone'] ?? '',
+        $_POST['whatsapp'] ?? '',
+        $_POST['email'] ?? '',
+        $_POST['cpf'] ?? '',
+        $_POST['rg'] ?? '',
+        isset($_POST['data_nascimento']) && $_POST['data_nascimento'] !== '' ? $_POST['data_nascimento'] : null,
+        $_POST['cep'] ?? '',
+        $_POST['logradouro'] ?? '',
+        $_POST['numero'] ?? '',
+        $_POST['complemento'] ?? '',
+        $_POST['bairro'] ?? '',
+        $_POST['cidade'] ?? '',
+        $_POST['uf'] ?? '',
+        $_POST['observacoes'] ?? '',
         isset($_POST['ativo']) ? 1 : 0
     ];
 
