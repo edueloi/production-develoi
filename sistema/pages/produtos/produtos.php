@@ -1,252 +1,113 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) session_start();
 // ==========================================
-// 1. LÓGICA PHP (CRUD COMPLETO)
+// 1. CONFIG E LÓGICA PHP
 // ==========================================
-
-// Banco de dados primeiro (para API não vazar HTML)
 require_once '../../includes/banco-dados/db.php';
-$owner_id = $_SESSION['user_id'];
+include_once '../../includes/menu.php';
 
-// Diretório de upload de imagens dos produtos
 $uploadDir = '../../assets/uploads/produtos/';
 if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
-// ------------------------------------------
-// 1.1 API INTERNA (JSON para o JavaScript)
-// ------------------------------------------
-if (isset($_GET['api_acao'])) {
-    header('Content-Type: application/json; charset=utf-8');
-
-    // A. Buscar dados para edição
-    if ($_GET['api_acao'] === 'get_produto' && isset($_GET['id'])) {
-        $id = (int)$_GET['id'];
-
-        // Produto
-
-        // Produto
-        $stmt = $pdo->prepare("SELECT * FROM produtos WHERE id = ? AND owner_id = ?");
-        $stmt->execute([$id, $owner_id]);
-        $prod = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // Variações
-        $stmtVar = $pdo->prepare("SELECT * FROM produtos_variacoes WHERE produto_id = ? AND owner_id = ?");
-        $stmtVar->execute([$id, $owner_id]);
-        $vars = $stmtVar->fetchAll(PDO::FETCH_ASSOC);
-
-        // Galeria
-        $stmtGal = $pdo->prepare("SELECT * FROM produtos_galeria WHERE produto_id = ?");
-        $stmtGal->execute([$id]);
-        $galeria = $stmtGal->fetchAll(PDO::FETCH_ASSOC);
-
-        echo json_encode([
-            'produto'   => $prod,
-            'variacoes' => $vars,
-            'galeria'   => $galeria
-        ]);
-        exit;
-    }
-
-    // B. Excluir imagem da galeria
-    if ($_GET['api_acao'] === 'del_imagem' && isset($_GET['id'])) {
-        $idImg = (int)$_GET['id'];
-
-        $stmt = $pdo->prepare("SELECT caminho_imagem FROM produtos_galeria WHERE id = ?");
-        $stmt->execute([$idImg]);
-        $img = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($img) {
-            $file = $uploadDir . $img['caminho_imagem'];
-            if (file_exists($file)) @unlink($file);
-
-            $pdo->prepare("DELETE FROM produtos_galeria WHERE id = ?")->execute([$idImg]);
-            echo json_encode(['success' => true]);
-        } else {
-            echo json_encode(['success' => false]);
-        }
-        exit;
-    }
-
-    // C. Excluir produto (capa + galeria + variações)
-    if ($_GET['api_acao'] === 'del_produto' && isset($_GET['id'])) {
-        $idProd = (int)$_GET['id'];
-
-        try {
-            $pdo->beginTransaction();
-
-            // Apagar capa
-            $stmt = $pdo->prepare("SELECT imagem_capa FROM produtos WHERE id = ?");
-            $stmt->execute([$idProd]);
-            $p = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($p && !empty($p['imagem_capa'])) {
-                $capaFile = $uploadDir . $p['imagem_capa'];
-                if (file_exists($capaFile)) @unlink($capaFile);
-            }
-
-            // Apagar imagens da galeria (arquivos)
-            $stmtGal = $pdo->prepare("SELECT caminho_imagem FROM produtos_galeria WHERE produto_id = ?");
-            $stmtGal->execute([$idProd]);
-            $gals = $stmtGal->fetchAll(PDO::FETCH_ASSOC);
-
-            foreach ($gals as $g) {
-                $file = $uploadDir . $g['caminho_imagem'];
-                if (file_exists($file)) @unlink($file);
-            }
-
-            // Banco: ON DELETE CASCADE já remove variações/galeria
-            $stmtDel = $pdo->prepare("DELETE FROM produtos WHERE id = ? AND owner_id = ?");
-            $stmtDel->execute([$idProd, $owner_id]);
-
-            $pdo->commit();
-            echo json_encode(['success' => true]);
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-        exit;
-    }
-
-    // Qualquer outra ação não reconhecida
-    echo json_encode(['success' => false, 'error' => 'Ação inválida']);
+// --- API INTERNA (JSON) ---
+if (isset($_GET['api_acao']) && $_GET['api_acao'] === 'get_produto') {
+    $id = (int)$_GET['id'];
+    $prod = $pdo->query("SELECT * FROM produtos WHERE id = $id")->fetch(PDO::FETCH_ASSOC);
+    $vars = $pdo->query("SELECT * FROM produtos_variacoes WHERE produto_id = $id")->fetchAll(PDO::FETCH_ASSOC);
+    $imgs = $pdo->query("SELECT * FROM produtos_galeria WHERE produto_id = $id")->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['produto' => $prod, 'variacoes' => $vars, 'galeria' => $imgs]);
     exit;
 }
 
+if (isset($_GET['api_acao']) && $_GET['api_acao'] === 'del_imagem') {
+    $id = (int)$_GET['id'];
+    $img = $pdo->query("SELECT caminho_imagem FROM produtos_galeria WHERE id = $id")->fetchColumn();
+    if ($img && file_exists($uploadDir.$img)) unlink($uploadDir.$img);
+    $pdo->query("DELETE FROM produtos_galeria WHERE id = $id");
+    echo json_encode(['success' => true]);
+    exit;
+}
 
-// ------------------------------------------
-// 1.2 PÁGINA NORMAL (HTML + MENU)
-// ------------------------------------------
-?>
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Produtos</title>
-    <link rel="stylesheet" href="../../assets/css/admin.css">
-</head>
-<body>
-<?php
-include_once '../../includes/menu.php';
-
-// --- PROCESSAR FORMULÁRIO (SALVAR / ATUALIZAR) ---
+// --- SALVAR PRODUTO ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'salvar') {
     try {
         $pdo->beginTransaction();
-
         $id = !empty($_POST['id_produto']) ? (int)$_POST['id_produto'] : null;
 
-        // Dados gerais
-        $nome         = $_POST['nome'];
-        $marca        = $_POST['marca'];
-        $modelo       = $_POST['modelo'];
-        $tipo         = $_POST['tipo'];
-        $cod_barras   = $_POST['cod_barras'];
-        $est_min      = (int)$_POST['est_min'];
-        $tem_validade = isset($_POST['tem_validade']) ? 1 : 0;
-        $dt_validade  = $_POST['data_validade'] ?: null;
-        $ativo        = isset($_POST['ativo']) ? 1 : 0;
-        $auto_des     = isset($_POST['auto_desativar']) ? 1 : 0;
-        $desc         = $_POST['descricao'];
+        // Helper para limpar moeda (R$ 1.200,00 -> 1200.00)
+        function limpaMoeda($val) {
+            if(empty($val)) return 0;
+            return (float)str_replace(',', '.', str_replace('.', '', $val)); // Remove ponto milhar, troca virgula por ponto
+        }
 
-        // Upload Capa (se enviada)
-        $capaSql = "";
-        $params = [
-            $nome, $marca, $modelo, $tipo, $cod_barras,
-            $est_min, $tem_validade, $dt_validade, $ativo, $auto_des, $desc
-        ];
+        // Dados
+        $nome       = $_POST['nome'] ?? 'Produto Sem Nome';
+        $marca      = $_POST['marca'] ?? '';
+        $modelo     = $_POST['modelo'] ?? '';
+        $tipo       = $_POST['tipo'] ?? 'fisico';
+        $cod        = $_POST['cod_barras'] ?? '';
+        $est_min    = (int)($_POST['est_min'] ?? 0);
+        $preco_custo= limpaMoeda($_POST['preco_custo']);
+        $preco_venda= limpaMoeda($_POST['preco_venda']);
+        $validade   = isset($_POST['tem_validade']) ? 1 : 0;
+        $dt_val     = $_POST['data_validade'] ?: null;
+        $ativo      = isset($_POST['ativo']) ? 1 : 0;
+        $auto_des   = isset($_POST['auto_desativar']) ? 1 : 0;
+        $desc       = $_POST['descricao'] ?? '';
+
+        // Capa
+        $capaSql = ""; 
+        $params = [$nome, $marca, $modelo, $tipo, $cod, $est_min, $preco_custo, $preco_venda, $validade, $dt_val, $ativo, $auto_des, $desc];
 
         if (!empty($_FILES['imagem_capa']['name'])) {
-            $ext = strtolower(pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg', 'jpeg', 'png'])) {
-                $novoNome = uniqid('capa_') . '.' . $ext;
-                if (move_uploaded_file($_FILES['imagem_capa']['tmp_name'], $uploadDir . $novoNome)) {
-                    if ($id) {
-                        // update com nova capa
-                        $capaSql = ", imagem_capa = ?";
-                        $params[] = $novoNome;
-
-                        // apaga capa antiga
-                        $stmtOld = $pdo->prepare("SELECT imagem_capa FROM produtos WHERE id = ?");
-                        $stmtOld->execute([$id]);
-                        $old = $stmtOld->fetch(PDO::FETCH_ASSOC);
-                        if ($old && !empty($old['imagem_capa'])) {
-                            $oldPath = $uploadDir . $old['imagem_capa'];
-                            if (file_exists($oldPath)) @unlink($oldPath);
-                        }
-                    } else {
-                        // insert com capa
-                        $params[] = $novoNome;
-                    }
-                }
+            $ext = pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION);
+            $novoNome = uniqid('capa_') . '.' . $ext;
+            if (move_uploaded_file($_FILES['imagem_capa']['tmp_name'], $uploadDir . $novoNome)) {
+                if ($id) { $capaSql = ", imagem_capa = ?"; $params[] = $novoNome; }
+                else { $params[] = $novoNome; }
             }
         } else {
-            // insert sem capa
             if (!$id) $params[] = null;
         }
 
-
         if ($id) {
-            // --- UPDATE ---
-            $sql = "UPDATE produtos 
-                    SET nome=?, marca=?, modelo=?, tipo_produto=?, codigo_barras=?, estoque_minimo=?, 
-                        tem_validade=?, data_validade=?, ativo=?, auto_desativar=?, descricao=? 
-                        $capaSql 
-                    WHERE id=? AND owner_id=?";
+            $sql = "UPDATE produtos SET nome=?, marca=?, modelo=?, tipo_produto=?, codigo_barras=?, estoque_minimo=?, preco_custo=?, preco_venda=?, tem_validade=?, data_validade=?, ativo=?, auto_desativar=?, descricao=? $capaSql WHERE id=?";
             $params[] = $id;
-            $params[] = $owner_id;
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
+            $pdo->prepare($sql)->execute($params);
             $produtoId = $id;
-
-            // Limpa variações antigas (estratégia simples)
-            $pdo->prepare("DELETE FROM produtos_variacoes WHERE produto_id = ? AND owner_id = ?")->execute([$id, $owner_id]);
+            // Limpa variações antigas para recriar
+            $pdo->prepare("DELETE FROM produtos_variacoes WHERE produto_id = ?")->execute([$id]);
         } else {
-            // --- INSERT ---
-            $stmt = $pdo->prepare("INSERT INTO produtos 
-                (nome, marca, modelo, tipo_produto, codigo_barras, estoque_minimo, tem_validade, data_validade, ativo, auto_desativar, descricao, imagem_capa, owner_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $params[] = $owner_id;
-            $stmt->execute($params);
+            $sql = "INSERT INTO produtos (nome, marca, modelo, tipo_produto, codigo_barras, estoque_minimo, preco_custo, preco_venda, tem_validade, data_validade, ativo, auto_desativar, descricao, imagem_capa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+            $pdo->prepare($sql)->execute($params);
             $produtoId = $pdo->lastInsertId();
         }
 
-        // Salvar variações
+        // Variações
         if (isset($_POST['var_cor'])) {
-            $stmtVar = $pdo->prepare("INSERT INTO produtos_variacoes (produto_id, cor, tamanho, peso, preco, estoque, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            foreach ($_POST['var_cor'] as $key => $cor) {
-                $tam   = $_POST['var_tam'][$key];
-                $peso  = $_POST['var_peso'][$key];
-                $qtd   = $_POST['var_qtd'][$key];
-                $preco = $_POST['var_preco'][$key];
-
-                if ($cor && $qtd !== '' && $preco !== '') {
-                    $stmtVar->execute([$produtoId, $cor, $tam, $peso, $preco, $qtd, $owner_id]);
-                }
+            $stmtV = $pdo->prepare("INSERT INTO produtos_variacoes (produto_id, cor, tamanho, peso, estoque, preco_venda) VALUES (?,?,?,?,?,?)");
+            foreach ($_POST['var_cor'] as $k => $cor) {
+                // Se a variação tiver preço específico, usa, senão usa o geral
+                $vPreco = !empty($_POST['var_preco'][$k]) ? limpaMoeda($_POST['var_preco'][$k]) : $preco_venda;
+                $stmtV->execute([
+                    $produtoId, 
+                    $cor, 
+                    $_POST['var_tam'][$k], 
+                    $_POST['var_peso'][$k], 
+                    (int)$_POST['var_qtd'][$k],
+                    $vPreco
+                ]);
             }
         }
 
-        // Salvar novas imagens da galeria (máx 10)
+        // Galeria
         if (!empty($_FILES['galeria']['name'][0])) {
-            $stmtGal = $pdo->prepare("INSERT INTO produtos_galeria (produto_id, caminho_imagem) VALUES (?, ?)");
-
-            // conta quantas já existem
-            $stmtCount = $pdo->prepare("SELECT COUNT(*) AS total FROM produtos_galeria WHERE produto_id = ?");
-            $stmtCount->execute([$produtoId]);
-            $jaTem = (int)$stmtCount->fetchColumn();
-            $limite = 10 - $jaTem;
-
+            $stmtG = $pdo->prepare("INSERT INTO produtos_galeria (produto_id, caminho_imagem) VALUES (?,?)");
             $total = count($_FILES['galeria']['name']);
-            for ($i = 0; $i < $total && $i < $limite; $i++) {
-                $tmp  = $_FILES['galeria']['tmp_name'][$i];
-                $name = $_FILES['galeria']['name'][$i];
-                $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-
-                if (in_array($ext, ['jpg', 'jpeg', 'png'])) {
-                    $nomeGal = uniqid('gal_') . '.' . $ext;
-                    if (move_uploaded_file($tmp, $uploadDir . $nomeGal)) {
-                        $stmtGal->execute([$produtoId, $nomeGal]);
-                    }
+            for ($i=0; $i<$total; $i++) {
+                $ext = pathinfo($_FILES['galeria']['name'][$i], PATHINFO_EXTENSION);
+                $nomeG = uniqid('gal_').'.'.$ext;
+                if(move_uploaded_file($_FILES['galeria']['tmp_name'][$i], $uploadDir.$nomeG)){
+                    $stmtG->execute([$produtoId, $nomeG]);
                 }
             }
         }
@@ -255,587 +116,400 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $msgSucesso = "Produto salvo com sucesso!";
     } catch (Exception $e) {
         $pdo->rollBack();
-        $msgErro = "Erro ao salvar: " . $e->getMessage();
+        $msgErro = $e->getMessage();
     }
 }
 
-// --- LISTAGEM ---
-$sql = "SELECT p.*, 
-            (SELECT SUM(estoque) FROM produtos_variacoes WHERE produto_id = p.id AND owner_id = :owner_id) as estoque_total 
-        FROM produtos p 
-        WHERE p.owner_id = :owner_id 
-        ORDER BY p.id DESC";
-$stmtLista = $pdo->prepare($sql);
-$stmtLista->execute([':owner_id' => $owner_id]);
-$listaProdutos = $stmtLista->fetchAll(PDO::FETCH_ASSOC);
-?>
-<style>
-    :root { --primary-color: #6366f1; --bg-glass: rgba(255,255,255,0.9); }
+// --- DADOS DO DASHBOARD ---
+$produtos = $pdo->query("SELECT * FROM produtos ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-    .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; padding:0 10px; }
+$totalItens = 0;
+$valorTotalEstoque = 0;
+$prodMaisEstoque = ['nome' => '-', 'qtd' => 0];
 
-    .card-panel { background:white; border-radius:12px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05); border:1px solid #e2e8f0; overflow:hidden; }
+foreach($produtos as $key => $p) {
+    // Busca soma das variações
+    $soma = $pdo->query("SELECT SUM(estoque) as qtd, SUM(estoque * preco_venda) as val FROM produtos_variacoes WHERE produto_id = {$p['id']}")->fetch(PDO::FETCH_ASSOC);
+    
+    $qtd = (int)($soma['qtd'] ?? 0);
+    $val = (float)($soma['val'] ?? ($qtd * $p['preco_venda'])); // Fallback se não tiver variações, usa preço pai
 
-    .table-custom { width:100%; border-collapse:collapse; }
-    .table-custom th { text-align:left; padding:16px; background:#f8fafc; color:#64748b; font-size:0.85rem; font-weight:600; text-transform:uppercase; }
-    .table-custom td { padding:16px; border-bottom:1px solid #f1f5f9; color:#334155; font-size:0.95rem; vertical-align:middle; }
-    .table-custom tr:last-child td { border-bottom:none; }
+    $produtos[$key]['estoque_total'] = $qtd;
+    $produtos[$key]['valor_estimado'] = $val;
 
-    .thumb-img { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#f1f5f9; border:1px solid #e2e8f0; }
+    $totalItens += $qtd;
+    $valorTotalEstoque += $val;
 
-    .badge { padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:600; }
-    .badge-success { background:#dcfce7; color:#166534; }
-    .badge-warning { background:#fef9c3; color:#854d0e; }
-    .badge-danger  { background:#fee2e2; color:#991b1b; }
-    .badge-neutral { background:#f1f5f9; color:#475569; }
-
-    .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); backdrop-filter:blur(4px); z-index:2000; display:none; align-items:center; justify-content:center; }
-    .modal-overlay.open { display:flex; }
-
-    .modal-box { background:white; width:90%; max-width:800px; max-height:90vh; border-radius:16px; display:flex; flex-direction:column; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); }
-    .modal-header { padding:20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; }
-    .modal-body { padding:20px; overflow-y:auto; flex:1; }
-    .modal-footer { padding:20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px; background:#f8fafc; border-radius:0 0 16px 16px; }
-
-    .tabs { display:flex; gap:20px; border-bottom:2px solid #f1f5f9; margin-bottom:20px; }
-    .tab-btn { background:none; border:none; padding:10px 0; cursor:pointer; color:#64748b; font-weight:600; border-bottom:2px solid transparent; transition:0.2s; }
-    .tab-btn.active { color:var(--primary-color); border-bottom-color:var(--primary-color); }
-    .tab-content { display:none; }
-    .tab-content.active { display:block; animation:fadeIn 0.3s; }
-
-    .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:15px; }
-    .full-width { grid-column:span 2; }
-
-    .input-group label { display:block; font-size:0.85rem; color:#475569; margin-bottom:6px; font-weight:500; }
-    .input-control { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.95rem; transition:0.2s; }
-    .input-control:focus { outline:none; border-color:var(--primary-color); box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
-
-    .upload-zone { border:2px dashed #cbd5e1; border-radius:12px; padding:30px; text-align:center; cursor:pointer; transition:0.2s; background:#f8fafc; }
-    .upload-zone:hover { border-color:var(--primary-color); background:#eff6ff; }
-
-    .preview-gallery { display:flex; gap:10px; margin-top:15px; flex-wrap:wrap; }
-    .preview-item { width:80px; height:80px; border-radius:8px; object-fit:cover; border:1px solid #e2e8f0; }
-
-    .var-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 40px; gap:10px; margin-bottom:10px; align-items:center; }
-
-    @keyframes fadeIn { from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:translateY(0);} }
-
-    /* MOBILE – transforma tabela em cards */
-    @media (max-width: 768px) {
-        .table-custom thead { display:none; }
-
-        .table-custom tr {
-            display:block;
-            margin:8px 12px;
-            background:#fff;
-            border-radius:12px;
-            box-shadow:0 4px 6px -1px rgba(0,0,0,0.06);
-        }
-
-        .table-custom td {
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            border-bottom:none;
-            padding:8px 14px;
-            font-size:0.9rem;
-        }
-
-        .table-custom td:first-child {
-            justify-content:flex-start;
-            gap:10px;
-        }
-
-        .table-custom td:last-child {
-            justify-content:flex-end;
-            padding-bottom:12px;
-        }
+    if($qtd > $prodMaisEstoque['qtd']) {
+        $prodMaisEstoque = ['nome' => $p['nome'], 'qtd' => $qtd];
     }
-</style>
+}
+?>
 
-<main style="padding: 32px; max-width: 1200px; margin: 0 auto;">
-    <div class="page-header">
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestão de Produtos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #e2e8f0;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom:40px; margin:0; }
+        
+        /* Layout */
+        main { max-width: 1300px; margin: 30px auto; padding: 0 20px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .header h1 { font-size: 1.8rem; font-weight: 700; margin: 0; }
+        .btn-primary { background: var(--primary); color: white; padding: 12px 24px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; display: flex; gap: 8px; align-items: center; transition: 0.2s; }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* KPIs Cards */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .kpi-card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); display: flex; flex-direction: column; }
+        .kpi-label { font-size: 0.85rem; color: var(--muted); font-weight: 500; margin-bottom: 5px; }
+        .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--text); }
+        .kpi-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-bottom: 15px; }
+        
+        /* Tabela */
+        .card-table { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); }
+        .filters { padding: 20px; border-bottom: 1px solid var(--border); display: flex; gap: 15px; }
+        .search-input { flex: 1; padding: 10px 15px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 15px 20px; background: #f9fafb; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border); }
+        td { padding: 15px 20px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:hover { background: #fcfcfc; }
+        .prod-img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); }
+        
+        /* Modal Wizard */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(2px); }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: white; width: 95%; max-width: 800px; border-radius: 16px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        
+        .modal-header { padding: 20px 30px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        
+        .wizard-steps { display: flex; gap: 30px; padding: 15px 30px; background: #f9fafb; border-bottom: 1px solid var(--border); }
+        .step-btn { background: none; border: none; font-weight: 600; color: var(--muted); cursor: pointer; padding-bottom: 5px; border-bottom: 2px solid transparent; transition: 0.2s; }
+        .step-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        
+        .modal-body { padding: 30px; overflow-y: auto; flex: 1; }
+        .step-content { display: none; animation: fadeIn 0.3s; }
+        .step-content.active { display: block; }
+        
+        .modal-footer { padding: 20px 30px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; background: #fff; border-radius: 0 0 16px 16px; }
+
+        /* Form Elements */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .full { grid-column: span 2; }
+        label { display: block; margin-bottom: 6px; font-size: 0.9rem; font-weight: 500; color: var(--text); }
+        .input-control { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; box-sizing: border-box; }
+        .input-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px #e0e7ff; }
+        
+        .btn-nav { padding: 10px 20px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; color: var(--text); }
+        .btn-nav:hover { background: #f8fafc; }
+        .btn-save { background: var(--primary); color: white; border: none; }
+
+        .var-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 40px; gap: 10px; align-items: center; margin-bottom: 10px; }
+        
+        @keyframes fadeIn { from { opacity:0; transform: translateY(5px); } to { opacity:1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<main>
+    <div class="header">
         <div>
-            <h1 style="margin:0; font-size:1.5rem; color:#1e293b;">Produtos</h1>
-            <p style="margin:4px 0 0; color:#64748b;">Gerencie inventário, preços e variações.</p>
+            <h1>Produtos</h1>
+            <p style="color:var(--muted)">Gestão completa de estoque e preços</p>
         </div>
-        <button onclick="openModalNovo()" style="background:var(--primary-color); color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:8px;">
-            <i class="bi bi-plus-lg"></i> Novo Produto
-        </button>
+        <button class="btn-primary" onclick="abrirModal()">+ Novo Produto</button>
     </div>
 
-    <?php if(isset($msgSucesso)): ?>
-        <div style="padding:15px; background:#dcfce7; color:#166534; border-radius:8px; margin-bottom:20px; border:1px solid #bbf7d0;">
-            <i class="bi bi-check-circle-fill"></i> <?php echo $msgSucesso; ?>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:#e0e7ff; color:#4f46e5"><i class="bi bi-box-seam"></i></div>
+            <div class="kpi-label">Total de Itens</div>
+            <div class="kpi-value"><?php echo $totalItens; ?> <small style="font-size:1rem">un</small></div>
         </div>
-    <?php endif; ?>
-    <?php if(isset($msgErro)): ?>
-        <div style="padding:15px; background:#fee2e2; color:#991b1b; border-radius:8px; margin-bottom:20px; border:1px solid #fecaca;">
-            <i class="bi bi-exclamation-triangle-fill"></i> <?php echo $msgErro; ?>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:#dcfce7; color:#166534"><i class="bi bi-currency-dollar"></i></div>
+            <div class="kpi-label">Valor em Estoque</div>
+            <div class="kpi-value">R$ <?php echo number_format($valorTotalEstoque, 2, ',', '.'); ?></div>
         </div>
-    <?php endif; ?>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:#fef9c3; color:#854d0e"><i class="bi bi-star"></i></div>
+            <div class="kpi-label">Maior Estoque</div>
+            <div class="kpi-value" style="font-size:1.4rem"><?php echo $prodMaisEstoque['nome']; ?></div>
+        </div>
+    </div>
 
-    <div class="card-panel">
-        <table class="table-custom">
-            <thead>
-            <tr>
-                <th style="width: 80px;">Capa</th>
-                <th>Produto</th>
-                <th>Variações / Estoque</th>
-                <th>Status</th>
-                <th>Validade</th>
-                <th style="text-align:right;">Ações</th>
-            </tr>
-            </thead>
-            <tbody>
-            <?php foreach($listaProdutos as $prod):
-                $imgUrl = !empty($prod['imagem_capa'])
-                    ? '../../assets/uploads/produtos/'.$prod['imagem_capa']
-                    : 'https://via.placeholder.com/150?text=Sem+Foto';
-
-                // Validade
-                $validadeHtml = '<span class="badge badge-neutral">-</span>';
-                if ($prod['tem_validade']) {
-                    $hoje = date('Y-m-d');
-                    if ($prod['data_validade'] < $hoje) {
-                        $validadeHtml = '<span class="badge badge-danger">Vencido</span>';
-                    } elseif ($prod['data_validade'] < date('Y-m-d', strtotime('+30 days'))) {
-                        $validadeHtml = '<span class="badge badge-warning">Vence em breve</span>';
-                    } else {
-                        $validadeHtml = '<span class="badge badge-success">'.date('d/m/Y', strtotime($prod['data_validade'])).'</span>';
-                    }
-                }
-
-                $estoque = $prod['estoque_total'] ?: 0;
-                $estoqueClass = ($estoque <= $prod['estoque_minimo']) ? 'text-danger fw-bold' : '';
-                ?>
-                <tr>
-                    <td><img src="<?php echo $imgUrl; ?>" class="thumb-img"></td>
-                    <td>
-                        <div style="font-weight:600;"><?php echo htmlspecialchars($prod['nome']); ?></div>
-                        <div style="font-size:0.8rem; color:#94a3b8;"><?php echo htmlspecialchars($prod['marca'] . ' - ' . $prod['modelo']); ?></div>
-                    </td>
-                    <td>
-                        <div class="<?php echo $estoqueClass; ?>">
-                            <?php echo $estoque; ?> un.
-                        </div>
-                        <small style="color:#94a3b8;">Total (todas variações)</small>
-                    </td>
-                    <td>
-                        <?php if($prod['ativo']): ?>
-                            <span class="badge badge-success">Ativo</span>
-                        <?php else: ?>
-                            <span class="badge badge-danger">Inativo</span>
-                        <?php endif; ?>
-                    </td>
-                    <td><?php echo $validadeHtml; ?></td>
-                    <td style="text-align:right;">
-                        <button onclick="editarProduto(<?php echo $prod['id']; ?>)" style="background:none; border:none; cursor:pointer; color:#6366f1; margin-right:8px;">
-                            <i class="bi bi-pencil-square"></i>
-                        </button>
-                        <button onclick="openDeleteModal(<?php echo $prod['id']; ?>, '<?php echo addslashes(htmlspecialchars($prod['nome'])); ?>')" style="background:none; border:none; cursor:pointer; color:#ef4444;">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-
-            <?php if(empty($listaProdutos)): ?>
-                <tr><td colspan="6" style="text-align:center; padding:30px;">Nenhum produto cadastrado.</td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
+    <div class="card-table">
+        <div class="filters">
+            <input type="text" id="filtro" class="search-input" placeholder="Pesquisar produto..." onkeyup="filtrarTabela()">
+        </div>
+        <div style="overflow-x:auto">
+            <table id="tabelaProdutos">
+                <thead>
+                    <tr>
+                        <th width="70">Img</th>
+                        <th>Produto</th>
+                        <th>Preço Venda</th>
+                        <th>Estoque</th>
+                        <th>Status</th>
+                        <th style="text-align:right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($produtos as $p): 
+                        $img = !empty($p['imagem_capa']) ? $uploadDir.$p['imagem_capa'] : 'https://via.placeholder.com/60?text=IMG';
+                        $status = $p['ativo'] ? ['Ativo','success'] : ['Inativo','danger'];
+                    ?>
+                    <tr>
+                        <td><img src="<?php echo $img; ?>" class="prod-img"></td>
+                        <td>
+                            <div style="font-weight:600"><?php echo htmlspecialchars($p['nome']); ?></div>
+                            <div style="font-size:0.8rem; color:var(--muted)"><?php echo htmlspecialchars($p['marca']); ?></div>
+                        </td>
+                        <td>
+                            R$ <?php echo number_format($p['preco_venda'], 2, ',', '.'); ?>
+                            <?php if($p['preco_custo'] > 0): ?>
+                                <div style="font-size:0.75rem; color:var(--muted)">Custo: <?php echo number_format($p['preco_custo'], 2, ',', '.'); ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <div style="font-weight:700"><?php echo $p['estoque_total']; ?> un</div>
+                        </td>
+                        <td><span style="padding:4px 8px; border-radius:20px; font-size:0.75rem; background:var(--bs-<?php echo $status[1]; ?>-bg-subtle); color:var(--bs-<?php echo $status[1]; ?>)"><?php echo $status[0]; ?></span></td>
+                        <td style="text-align:right">
+                            <button onclick="editar(<?php echo $p['id']; ?>)" style="border:1px solid #ddd; background:white; border-radius:6px; width:32px; height:32px; cursor:pointer;"><i class="bi bi-pencil"></i></button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </main>
 
-<!-- MODAL DE CADASTRO/EDIÇÃO -->
-<div class="modal-overlay" id="productModal">
-    <form class="modal-box" method="POST" enctype="multipart/form-data" id="productForm">
+<div class="modal-overlay" id="modalProduto">
+    <form class="modal-box" method="POST" enctype="multipart/form-data" id="formProd">
         <input type="hidden" name="acao" value="salvar">
-        <input type="hidden" name="id_produto" id="inputIdProduto" value="">
+        <input type="hidden" name="id_produto" id="inpId">
 
         <div class="modal-header">
-            <h3 style="margin:0;">Novo Produto</h3>
-            <button type="button" onclick="closeModal()" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+            <h3>Cadastro de Produto</h3>
+            <button type="button" onclick="fecharModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer">&times;</button>
+        </div>
+
+        <div class="wizard-steps">
+            <button type="button" class="step-btn active" onclick="goStep(1)">1. Dados Básicos</button>
+            <button type="button" class="step-btn" onclick="goStep(2)">2. Preços e Estoque</button>
+            <button type="button" class="step-btn" onclick="goStep(3)">3. Fotos</button>
         </div>
 
         <div class="modal-body">
-            <div class="tabs">
-                <button type="button" class="tab-btn active" onclick="switchTab(event, 'tab-geral')">1. Dados Gerais</button>
-                <button type="button" class="tab-btn" onclick="switchTab(event, 'tab-var')">2. Estoque & Variações</button>
-                <button type="button" class="tab-btn" onclick="switchTab(event, 'tab-img')">3. Imagens</button>
-            </div>
-
-            <div id="tab-geral" class="tab-content active">
+            <div class="step-content active" id="step1">
                 <div class="form-grid">
-                    <div class="input-group full-width">
-                        <label>Nome do Produto</label>
-                        <input type="text" name="nome" class="input-control" required placeholder="Ex: Camiseta Básica Algodão">
+                    <div class="full">
+                        <label>Nome do Produto (Obrigatório)</label>
+                        <input type="text" name="nome" id="inpNome" class="input-control" placeholder="Ex: Camiseta Nike Branca" required>
                     </div>
-
-                    <div class="input-group">
+                    <div>
                         <label>Marca</label>
-                        <input type="text" name="marca" class="input-control" placeholder="Ex: Nike">
+                        <input type="text" name="marca" id="inpMarca" class="input-control">
                     </div>
-                    <div class="input-group">
+                    <div>
                         <label>Modelo</label>
-                        <input type="text" name="modelo" class="input-control" placeholder="Ex: Slim Fit">
+                        <input type="text" name="modelo" id="inpModelo" class="input-control">
                     </div>
-
-                    <div class="input-group">
-                        <label>Código de Barras (EAN)</label>
-                        <input type="text" name="cod_barras" class="input-control">
+                    <div>
+                        <label>Código Barras</label>
+                        <input type="text" name="cod_barras" id="inpCod" class="input-control">
                     </div>
-                    <div class="input-group">
+                    <div>
                         <label>Tipo</label>
-                        <select name="tipo" class="input-control">
-                            <option value="produto">Produto Físico</option>
+                        <select name="tipo" id="inpTipo" class="input-control">
+                            <option value="fisico">Produto Físico</option>
                             <option value="servico">Serviço</option>
-                            <option value="kit">Kit / Combo</option>
                         </select>
                     </div>
-
-                    <div class="input-group full-width">
-                        <label>Descrição Detalhada</label>
-                        <textarea name="descricao" class="input-control" rows="3"></textarea>
-                    </div>
-
-                    <div class="input-group" style="display:flex; align-items:center; gap:10px; margin-top:10px;">
-                        <input type="checkbox" id="checkValidade" name="tem_validade" onchange="toggleValidade()">
-                        <label for="checkValidade" style="margin:0; cursor:pointer;">Este produto tem validade?</label>
-                    </div>
-                    <div class="input-group" id="divDataValidade" style="display:none;">
-                        <label>Data de Validade</label>
-                        <input type="date" name="data_validade" class="input-control">
-                    </div>
-
-                    <div class="full-width" style="border-top:1px solid #f1f5f9; margin-top:10px; padding-top:10px;">
-                        <div style="display:flex; gap:20px;">
-                            <label style="display:flex; align-items:center; gap:8px;">
-                                <input type="checkbox" name="ativo" checked> Produto Ativo no Site
-                            </label>
-                            <label style="display:flex; align-items:center; gap:8px;">
-                                <input type="checkbox" name="auto_desativar"> Desativar se estoque zerar
-                            </label>
-                        </div>
+                    <div class="full">
+                        <label>Descrição</label>
+                        <textarea name="descricao" id="inpDesc" class="input-control" rows="3"></textarea>
                     </div>
                 </div>
             </div>
 
-            <div id="tab-var" class="tab-content">
-                <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:15px;">
-                    <p style="margin:0; font-size:0.9rem; color:#64748b;">
-                        Cadastre as variações (Ex: Preta P, Preta M). O estoque total será a soma destas quantidades.
-                    </p>
-                    <div class="input-group" style="margin-top:10px;">
-                        <label>Alerta de Estoque Mínimo (Geral)</label>
-                        <input type="number" name="est_min" value="5" class="input-control" style="width:100px;">
+            <div class="step-content" id="step2">
+                <div class="form-grid" style="margin-bottom:20px; background:#f9fafb; padding:15px; border-radius:8px;">
+                    <div>
+                        <label>Preço de Custo (R$)</label>
+                        <input type="text" name="preco_custo" id="inpCusto" class="input-control" placeholder="0,00">
+                    </div>
+                    <div>
+                        <label>Preço de Venda (R$)</label>
+                        <input type="text" name="preco_venda" id="inpVenda" class="input-control" placeholder="0,00">
+                    </div>
+                    <div>
+                        <label>Estoque Mínimo (Alerta)</label>
+                        <input type="number" name="est_min" id="inpMin" class="input-control" value="5">
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 40px; gap:10px; font-size:0.9rem; margin-bottom:8px; color:#64748b;">
-                    <span>Cor</span><span>Tamanho</span><span>Peso</span><span>Qtd</span><span>Preço</span><span></span>
-                </div>
-                <div id="variacoes-container"></div>
-                <button type="button" onclick="addVariationRow()" style="margin-top:10px; background:none; border:1px dashed #6366f1; color:#6366f1; width:100%; padding:10px; border-radius:8px; cursor:pointer;">
-                    + Adicionar Variação
-                </button>
+                <label>Variações (Cor, Tamanho, etc)</label>
+                <div id="containerVariacoes"></div>
+                <button type="button" onclick="addVarRow()" style="margin-top:10px; background:white; border:1px dashed var(--primary); color:var(--primary); width:100%; padding:10px; border-radius:8px; cursor:pointer;">+ Adicionar Variação</button>
             </div>
 
-            <div id="tab-img" class="tab-content">
-                <div class="input-group full-width">
-                    <label>Foto de Capa (Principal)</label>
-                    <input type="file" name="imagem_capa" class="input-control" accept="image/png, image/jpeg">
-                </div>
-
-                <div id="galeria-existente" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;"></div>
-
-                <div style="margin-top:20px;">
-                    <label style="display:block; margin-bottom:10px;">Galeria (Até 10 imagens)</label>
-                    <div class="upload-zone" id="dropZone">
-                        <i class="bi bi-cloud-arrow-up" style="font-size:2rem; color:#cbd5e1;"></i>
-                        <p style="margin:10px 0; color:#64748b;">Arraste fotos aqui ou clique para selecionar</p>
-                        <input type="file" name="galeria[]" id="galeriaInput" multiple accept="image/png, image/jpeg" style="display:none;">
-                    </div>
-                    <div class="preview-gallery" id="previewGallery"></div>
-                </div>
+            <div class="step-content" id="step3">
+                <label>Foto de Capa</label>
+                <input type="file" name="imagem_capa" class="input-control" accept="image/*" style="margin-bottom:20px;">
+                
+                <label>Galeria (Mais fotos)</label>
+                <input type="file" name="galeria[]" class="input-control" multiple accept="image/*">
+                
+                <div id="galeriaExistente" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:20px;"></div>
             </div>
         </div>
 
         <div class="modal-footer">
-            <button type="button" onclick="closeModal()" style="padding:10px 20px; border:1px solid #cbd5e1; background:white; border-radius:8px; cursor:pointer;">Cancelar</button>
-            <button type="submit" style="padding:10px 20px; background:var(--primary-color); color:white; border:none; border-radius:8px; cursor:pointer;">Salvar Produto</button>
+            <button type="button" class="btn-nav" id="btnVoltar" onclick="nav(-1)" style="visibility:hidden">Voltar</button>
+            <div>
+                <button type="button" class="btn-nav" id="btnAvancar" onclick="nav(1)">Próximo</button>
+                <button type="submit" class="btn-nav btn-save" id="btnSalvar" style="display:none">Salvar Produto</button>
+            </div>
         </div>
     </form>
 </div>
 
-<!-- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO -->
-<div class="modal-overlay" id="confirmDeleteModal">
-    <div class="modal-box" style="max-width: 420px;">
-        <div class="modal-header">
-            <h3 style="margin:0; font-size:1.1rem;">Excluir produto</h3>
-            <button type="button" onclick="closeDeleteModal()"
-                    style="background:none; border:none; font-size:1.5rem; cursor:pointer;">
-                &times;
-            </button>
-        </div>
-        <div class="modal-body">
-            <p style="margin:0 0 10px; color:#475569;">
-                Tem certeza que deseja excluir o produto abaixo? Essa ação não pode ser desfeita.
-            </p>
-            <p style="margin:0; font-weight:600; color:#111827;" id="deleteProductName"></p>
-        </div>
-        <div class="modal-footer" style="justify-content:flex-end;">
-            <button type="button" onclick="closeDeleteModal()"
-                    style="padding:8px 18px; border:1px solid #cbd5e1; background:white; border-radius:8px; cursor:pointer;">
-                Cancelar
-            </button>
-            <button type="button" onclick="confirmDelete()"
-                    style="padding:8px 18px; background:#ef4444; color:white; border:none; border-radius:8px; cursor:pointer;">
-                Excluir
-            </button>
-        </div>
-    </div>
-</div>
-
 <script>
-    const modal = document.getElementById('productModal');
-    const form  = document.getElementById('productForm');
-
-    const confirmDeleteModal = document.getElementById('confirmDeleteModal');
-    const deleteProductName  = document.getElementById('deleteProductName');
-    let deleteId = null;
-
-    function resetForm() {
-        form.reset();
-        document.getElementById('inputIdProduto').value = '';
-        document.getElementById('variacoes-container').innerHTML = '';
-        document.getElementById('previewGallery').innerHTML = '';
-        document.getElementById('galeria-existente').innerHTML = '';
-        toggleValidade(); // esconde campo se necessário
-        switchTab(null, 'tab-geral', true);
-    }
-
-    function openModalNovo() {
-        resetForm();
-        document.querySelector('.modal-header h3').innerText = "Novo Produto";
-        addVariationRow();
-        modal.classList.add('open');
-    }
+    let currentStep = 1;
+    const totalSteps = 3;
 
     function openModal() {
-        modal.classList.add('open');
+        document.getElementById('formProd').reset();
+        document.getElementById('inpId').value = '';
+        document.getElementById('containerVariacoes').innerHTML = '';
+        document.getElementById('galeriaExistente').innerHTML = '';
+        currentStep = 1;
+        updateWizard();
+        document.getElementById('modalProduto').classList.add('open');
     }
 
-    function closeModal() {
-        modal.classList.remove('open');
+    function fecharModal() {
+        document.getElementById('modalProduto').classList.remove('open');
     }
 
-    // Abas
-    function switchTab(evt, tabId, fromReset = false) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    // Navegação Wizard
+    function nav(dir) {
+        currentStep += dir;
+        updateWizard();
+    }
+    function goStep(n) {
+        currentStep = n;
+        updateWizard();
+    }
 
-        document.getElementById(tabId).classList.add('active');
+    function updateWizard() {
+        // Esconde todos
+        for(let i=1; i<=totalSteps; i++) {
+            document.getElementById('step'+i).classList.remove('active');
+            document.querySelectorAll('.step-btn')[i-1].classList.remove('active');
+        }
+        // Mostra atual
+        document.getElementById('step'+currentStep).classList.add('active');
+        document.querySelectorAll('.step-btn')[currentStep-1].classList.add('active');
 
-        if (!fromReset && evt) {
-            evt.target.classList.add('active');
+        // Botões footer
+        document.getElementById('btnVoltar').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+        
+        if(currentStep === totalSteps) {
+            document.getElementById('btnAvancar').style.display = 'none';
+            document.getElementById('btnSalvar').style.display = 'block';
         } else {
-            const firstBtn = document.querySelector('.tab-btn');
-            if (firstBtn) firstBtn.classList.add('active');
+            document.getElementById('btnAvancar').style.display = 'block';
+            document.getElementById('btnSalvar').style.display = 'none';
         }
     }
 
-    // Validade
-    function toggleValidade() {
-        const check = document.getElementById('checkValidade');
-        const div = document.getElementById('divDataValidade');
-        if (!check) return;
-        div.style.display = check.checked ? 'block' : 'none';
-    }
-
-    // Variações dinâmicas
-    function addVariationRow(cor = '', tam = '', peso = '', qtd = '', preco = '') {
-        const container = document.getElementById('variacoes-container');
+    // Variações
+    function addVarRow(cor='', tam='', peso='', qtd='', preco='') {
         const div = document.createElement('div');
         div.className = 'var-row';
         div.innerHTML = `
-            <input type="text" name="var_cor[]" value="${cor}" placeholder="Cor (Ex: Preto)" class="input-control" required>
-            <input type="text" name="var_tam[]" value="${tam}" placeholder="Tam (P, M)" class="input-control">
-            <input type="number" name="var_peso[]" value="${peso}" placeholder="Kg" class="input-control" step="0.01">
-            <input type="number" name="var_qtd[]" value="${qtd}" placeholder="Qtd" class="input-control" min="0" required>
-            <input type="number" name="var_preco[]" value="${preco}" placeholder="Preço" class="input-control" min="0" step="0.01" required>
+            <input type="text" name="var_cor[]" class="input-control" placeholder="Cor (Ex: Azul)" value="${cor}">
+            <input type="text" name="var_tam[]" class="input-control" placeholder="Tam" value="${tam}">
+            <input type="text" name="var_peso[]" class="input-control" placeholder="Peso" value="${peso}">
+            <input type="number" name="var_qtd[]" class="input-control" placeholder="Qtd" value="${qtd}">
+            <input type="text" name="var_preco[]" class="input-control" placeholder="Preço Venda" value="${preco}">
             <button type="button" onclick="this.parentElement.remove()" style="color:red; border:none; background:none; cursor:pointer;"><i class="bi bi-trash"></i></button>
         `;
-        container.appendChild(div);
+        document.getElementById('containerVariacoes').appendChild(div);
     }
 
-    // EDITAR PRODUTO (AJAX)
-    async function editarProduto(id) {
-        resetForm();
-        document.getElementById('inputIdProduto').value = id;
-        document.querySelector('.modal-header h3').innerText = "Editar Produto #" + id;
-
+    // Editar
+    async function editar(id) {
+        openModal();
         try {
-            const response = await fetch(`?api_acao=get_produto&id=${id}`);
-            const data = await response.json();
+            const res = await fetch(`?api_acao=get_produto&id=${id}`);
+            const data = await res.json();
             const p = data.produto;
 
-            document.querySelector('[name="nome"]').value        = p.nome || '';
-            document.querySelector('[name="marca"]').value       = p.marca || '';
-            document.querySelector('[name="modelo"]').value      = p.modelo || '';
-            document.querySelector('[name="cod_barras"]').value  = p.codigo_barras || '';
-            document.querySelector('[name="est_min"]').value     = p.estoque_minimo || 0;
-            document.querySelector('[name="descricao"]').value   = p.descricao || '';
-            document.querySelector('[name="tipo"]').value        = p.tipo_produto || 'produto';
-
-            document.querySelector('[name="ativo"]').checked          = (p.ativo == 1);
-            document.querySelector('[name="auto_desativar"]').checked = (p.auto_desativar == 1);
-
-            const checkVal = document.getElementById('checkValidade');
-            checkVal.checked = (p.tem_validade == 1);
-            toggleValidade();
-            if (p.tem_validade == 1 && p.data_validade) {
-                document.querySelector('[name="data_validade"]').value = p.data_validade;
-            }
+            document.getElementById('inpId').value = p.id;
+            document.getElementById('inpNome').value = p.nome;
+            document.getElementById('inpMarca').value = p.marca;
+            document.getElementById('inpModelo').value = p.modelo;
+            document.getElementById('inpCod').value = p.codigo_barras;
+            document.getElementById('inpDesc').value = p.descricao;
+            document.getElementById('inpCusto').value = p.preco_custo;
+            document.getElementById('inpVenda').value = p.preco_venda;
+            document.getElementById('inpMin').value = p.estoque_minimo;
 
             // Variações
-            if (data.variacoes.length > 0) {
-                data.variacoes.forEach(v => {
-                    addVariationRow(v.cor, v.tamanho, v.peso, v.estoque);
-                });
+            if(data.variacoes.length > 0) {
+                data.variacoes.forEach(v => addVarRow(v.cor, v.tamanho, v.peso, v.estoque, v.preco_venda));
             } else {
-                addVariationRow();
+                addVarRow();
             }
 
-            // Galeria existente
-            const galeriaContainer = document.getElementById('galeria-existente');
-            if (data.galeria.length > 0) {
-                galeriaContainer.innerHTML = '<p style="width:100%; font-size:0.85rem; color:#64748b; margin-bottom:5px;">Imagens salvas (clique no lixo para apagar):</p>';
-                data.galeria.forEach(img => {
-                    const div = document.createElement('div');
-                    div.style.position = 'relative';
-                    div.style.width = '80px';
-                    div.style.height = '80px';
-                    div.innerHTML = `
-                        <img src="../../assets/uploads/produtos/${img.caminho_imagem}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;">
-                        <button type="button" onclick="deletarImagem(${img.id}, this)" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
-                            <i class="bi bi-trash-fill" style="font-size:0.7rem;"></i>
-                        </button>
-                    `;
-                    galeriaContainer.appendChild(div);
-                });
-            }
+            // Galeria
+            const galDiv = document.getElementById('galeriaExistente');
+            data.galeria.forEach(g => {
+                galDiv.innerHTML += `
+                    <div style="position:relative;">
+                        <img src="../../assets/uploads/produtos/${g.caminho_imagem}" style="width:60px; height:60px; border-radius:6px; object-fit:cover;">
+                        <button type="button" onclick="delImg(${g.id}, this)" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px;">X</button>
+                    </div>
+                `;
+            });
 
-            openModal();
-        } catch (error) {
-            console.error('Erro ao buscar produto:', error);
-            alert('Erro ao carregar dados do produto.');
+        } catch(e) { console.error(e); }
+    }
+
+    async function delImg(id, btn) {
+        if(confirm('Apagar foto?')) {
+            await fetch(`?api_acao=del_imagem&id=${id}`);
+            btn.parentElement.remove();
         }
     }
 
-    // MODAL DE EXCLUSÃO
-    function openDeleteModal(id, nome) {
-        deleteId = id;
-        deleteProductName.textContent = nome;
-        confirmDeleteModal.classList.add('open');
-    }
-
-    function closeDeleteModal() {
-        confirmDeleteModal.classList.remove('open');
-        deleteId = null;
-    }
-
-    async function confirmDelete() {
-        if (!deleteId) return;
-
-        try {
-            const res = await fetch(`?api_acao=del_produto&id=${deleteId}`);
-            const data = await res.json();
-
-            if (data.success) {
-                closeDeleteModal();
-                location.reload();
-            } else {
-                closeDeleteModal();
-                alert('Erro ao excluir produto.');
-            }
-        } catch (e) {
-            console.error(e);
-            closeDeleteModal();
-            alert('Erro ao excluir produto.');
-        }
-    }
-
-    // Deletar imagem da galeria
-    async function deletarImagem(idImg, btnElement) {
-        if(!confirm('Quer mesmo apagar esta foto?')) return;
-        try {
-            const res = await fetch(`?api_acao=del_imagem&id=${idImg}`);
-            const data = await res.json();
-            if(data.success) {
-                btnElement.parentElement.remove();
-            } else {
-                alert('Erro ao apagar imagem.');
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    // Drag and drop galeria
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('galeriaInput');
-    const previewArea = document.getElementById('previewGallery');
-
-    dropZone.addEventListener('click', () => fileInput.click());
-
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.style.borderColor = '#6366f1';
-        dropZone.style.background = '#e0e7ff';
-    });
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.style.borderColor = '#cbd5e1';
-        dropZone.style.background = '#f8fafc';
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.style.borderColor = '#cbd5e1';
-        dropZone.style.background = '#f8fafc';
-
-        const files = e.dataTransfer.files;
-        handleFiles(files);
-        fileInput.files = files;
-    });
-
-    fileInput.addEventListener('change', () => {
-        handleFiles(fileInput.files);
-    });
-
-    function handleFiles(files) {
-        previewArea.innerHTML = '';
-        if (files.length > 10) {
-            alert('Máximo de 10 imagens permitidas!');
-            fileInput.value = '';
-            return;
-        }
-
-        Array.from(files).forEach(file => {
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.className = 'preview-item';
-                    previewArea.appendChild(img);
-                };
-                reader.readAsDataURL(file);
-            }
+    function filtrarTabela() {
+        const termo = document.getElementById('filtro').value.toLowerCase();
+        const rows = document.querySelectorAll('#tabelaProdutos tbody tr');
+        rows.forEach(r => {
+            r.style.display = r.innerText.toLowerCase().includes(termo) ? '' : 'none';
         });
     }
-
 </script>
+
 </body>
 </html>
