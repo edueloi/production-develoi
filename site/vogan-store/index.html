@@ -3,204 +3,190 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vogan Store | Next Gen Tech</title>
+    <title>Vogan Store | Ultimate Tech</title>
+    
     <link rel="stylesheet" href="assets/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;500;700;800&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
+    <div id="preloader">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <h2>VOGAN<span>STORE</span></h2>
+            <p>Carregando o futuro...</p>
+        </div>
+    </div>
+
     <header id="header">
-        <nav>
+        <nav class="container">
             <div class="logo">
-                <i class="fa-solid fa-gamepad"></i> VOGAN<span>STORE</span>
+                <i class="fa-solid fa-bolt"></i> VOGAN<span>STORE</span>
             </div>
-            
-            <ul class="nav-links">
-                <li><a href="#" class="active">Início</a></li>
-                <li><a href="#lancamentos">Lançamentos</a></li>
-                <li><a href="#audio">Áudio</a></li>
-                <li><a href="#setup">Setup</a></li>
-            </ul>
+
+            <div class="nav-wrapper">
+                <ul class="nav-links">
+                    <li><a href="#" class="active">Home</a></li>
+                    <li><a href="#categorias">Categorias</a></li>
+                    <li><a href="#destaques">Destaques</a></li>
+                    <li><a href="#promo">Ofertas</a></li>
+                </ul>
+                <i class="fa-solid fa-xmark" id="close-menu"></i>
+            </div>
 
             <div class="nav-icons">
-                <div class="search-box">
-                    <input type="text" placeholder="Buscar...">
-                    <i class="fa-solid fa-magnifying-glass"></i>
+                <i class="fa-solid fa-magnifying-glass search-btn"></i>
+                <div class="cart-box">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span class="cart-count">0</span>
                 </div>
-                <div class="cart-icon" onclick="alert('Carrinho aberto!')">
-                    <i class="fa-solid fa-cart-shopping"></i>
-                    <span id="cart-count">0</span>
-                </div>
+                <i class="fa-solid fa-bars" id="mobile-btn"></i>
             </div>
         </nav>
     </header>
 
-    <section class="hero">
-        <div class="hero-text hidden">
-            <span class="badge-new">NOVIDADE 2025</span>
-            <h1>O Poder do <br> <span class="gradient-text">Som Imersivo</span></h1>
-            <p>Descobre a nova linha Vogan Pro. Tecnologia de cancelamento de ruído e RGB sincronizado para o teu setup.</p>
-            <div class="hero-buttons">
-                <a href="#produtos" class="btn-primary">Ver Ofertas <i class="fa-solid fa-arrow-right"></i></a>
-                <a href="#" class="btn-secondary">Ver Video</a>
+    <section class="hero-slider">
+        <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1920&auto=format&fit=crop');">
+            <div class="container slide-content">
+                <span class="tag">LANÇAMENTO</span>
+                <h1>Setup <br>Next Level</h1>
+                <p>A nova geração de periféricos chegou na Vogan.</p>
+                <a href="#" class="btn-gradient">Comprar Agora</a>
             </div>
         </div>
-        <div class="hero-img hidden">
-            <i class="fa-solid fa-headset floating-icon"></i>
-            <div class="glow-effect"></div>
-        </div>
-    </section>
+        </section>
 
-    <section class="features">
-        <div class="feature-item">
-            <i class="fa-solid fa-truck-fast"></i>
-            <div>
-                <h4>Entrega Flash</h4>
-                <p>Para todo o Brasil</p>
-            </div>
+    <section id="categorias" class="categories container section-padding">
+        <div class="section-header">
+            <h2>Explorar por <span class="highlight">Categoria</span></h2>
         </div>
-        <div class="feature-item">
-            <i class="fa-solid fa-shield-halved"></i>
-            <div>
-                <h4>Garantia Gamer</h4>
-                <p>12 Meses de suporte</p>
+        <div class="category-grid">
+            <div class="cat-card">
+                <i class="fa-solid fa-headset"></i>
+                <h3>Áudio</h3>
             </div>
-        </div>
-        <div class="feature-item">
-            <i class="fa-solid fa-credit-card"></i>
-            <div>
-                <h4>Até 12x Sem Juros</h4>
-                <p>Cartão ou Pix</p>
+            <div class="cat-card">
+                <i class="fa-solid fa-keyboard"></i>
+                <h3>Teclados</h3>
+            </div>
+            <div class="cat-card">
+                <i class="fa-solid fa-computer-mouse"></i>
+                <h3>Mouses</h3>
+            </div>
+            <div class="cat-card">
+                <i class="fa-solid fa-vr-cardboard"></i>
+                <h3>VR</h3>
             </div>
         </div>
     </section>
 
-    <section id="produtos" class="products-section">
-        <div class="section-header hidden">
-            <h2>Populares na Vogan</h2>
-            <a href="#" class="view-all">Ver tudo <i class="fa-solid fa-chevron-right"></i></a>
+    <section id="destaques" class="products container section-padding">
+        <div class="section-header">
+            <h2>Os Mais <span class="highlight">Vendidos</span></h2>
+            <a href="#" class="btn-link">Ver todos <i class="fa-solid fa-arrow-right"></i></a>
         </div>
 
         <div class="product-grid">
+            <div class="product-card scroll-reveal">
+                <div class="img-box">
+                    <span class="discount">-20%</span>
+                    <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop" alt="Headset">
+                    <div class="action-btns">
+                        <button><i class="fa-regular fa-heart"></i></button>
+                        <button onclick="addCart()"><i class="fa-solid fa-cart-plus"></i></button>
+                    </div>
+                </div>
+                <div class="details">
+                    <span class="cat-name">Áudio Profissional</span>
+                    <h3>Vogan Bass Boosted</h3>
+                    <div class="price">
+                        <span class="old">R$ 500</span>
+                        <span class="new">R$ 399</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="product-card scroll-reveal">
+                <div class="img-box">
+                    <img src="https://images.unsplash.com/photo-1587831990711-23ca6441447b?w=500&auto=format&fit=crop" alt="Teclado">
+                    <div class="action-btns">
+                        <button><i class="fa-regular fa-heart"></i></button>
+                        <button onclick="addCart()"><i class="fa-solid fa-cart-plus"></i></button>
+                    </div>
+                </div>
+                <div class="details">
+                    <span class="cat-name">Mecânico</span>
+                    <h3>Teclado RGB 60%</h3>
+                    <div class="price">
+                        <span class="new">R$ 250</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="product-card scroll-reveal">
+                <div class="img-box">
+                    <span class="discount">HOT</span>
+                    <img src="https://images.unsplash.com/photo-1527814050087-3793815479db?w=500&auto=format&fit=crop" alt="Mouse">
+                    <div class="action-btns">
+                        <button><i class="fa-regular fa-heart"></i></button>
+                        <button onclick="addCart()"><i class="fa-solid fa-cart-plus"></i></button>
+                    </div>
+                </div>
+                <div class="details">
+                    <span class="cat-name">Precisão</span>
+                    <h3>Mouse Wireless 5G</h3>
+                    <div class="price">
+                        <span class="new">R$ 189</span>
+                    </div>
+                </div>
+            </div>
             
-            <div class="product-card hidden">
-                <div class="badge-discount">-15%</div>
-                <div class="card-img-wrapper">
-                    <i class="fa-solid fa-headset product-icon"></i>
-                </div>
-                <div class="card-info">
-                    <span class="category">Áudio</span>
-                    <h3>Headset Vogan X-Pro</h3>
-                    <div class="rating">
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star-half-stroke"></i>
+            <div class="product-card scroll-reveal">
+                <div class="img-box">
+                    <img src="https://images.unsplash.com/photo-1600080972464-8e5f35f63d88?w=500&auto=format&fit=crop" alt="Controle">
+                    <div class="action-btns">
+                        <button><i class="fa-regular fa-heart"></i></button>
+                        <button onclick="addCart()"><i class="fa-solid fa-cart-plus"></i></button>
                     </div>
-                    <div class="price-row">
-                        <span class="price">R$ 299,90</span>
-                        <button class="btn-add" onclick="adicionarCarrinho()">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
+                </div>
+                <div class="details">
+                    <span class="cat-name">Console & PC</span>
+                    <h3>Gamepad Elite V2</h3>
+                    <div class="price">
+                        <span class="new">R$ 420</span>
                     </div>
                 </div>
             </div>
-
-            <div class="product-card hidden">
-                <div class="card-img-wrapper">
-                    <i class="fa-solid fa-keyboard product-icon"></i>
-                </div>
-                <div class="card-info">
-                    <span class="category">Periféricos</span>
-                    <h3>Teclado Mech RGB</h3>
-                    <div class="rating">
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                    </div>
-                    <div class="price-row">
-                        <span class="price">R$ 450,00</span>
-                        <button class="btn-add" onclick="adicionarCarrinho()">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="product-card hidden">
-                <div class="badge-discount">HOT</div>
-                <div class="card-img-wrapper">
-                    <i class="fa-solid fa-computer-mouse product-icon"></i>
-                </div>
-                <div class="card-info">
-                    <span class="category">Mouses</span>
-                    <h3>Mouse Ultra Light</h3>
-                    <div class="rating">
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-regular fa-star"></i>
-                    </div>
-                    <div class="price-row">
-                        <span class="price">R$ 180,00</span>
-                        <button class="btn-add" onclick="adicionarCarrinho()">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="product-card hidden">
-                <div class="card-img-wrapper">
-                    <i class="fa-solid fa-gamepad product-icon"></i>
-                </div>
-                <div class="card-info">
-                    <span class="category">Consoles</span>
-                    <h3>Controlador Wireless</h3>
-                    <div class="rating">
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                        <i class="fa-solid fa-star"></i>
-                    </div>
-                    <div class="price-row">
-                        <span class="price">R$ 320,00</span>
-                        <button class="btn-add" onclick="adicionarCarrinho()">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
         </div>
     </section>
 
-    <section class="newsletter">
-        <div class="newsletter-content">
-            <h2>Não percas as novidades</h2>
-            <p>Recebe descontos exclusivos da Vogan Store no teu e-mail.</p>
-            <form>
-                <input type="email" placeholder="O teu melhor e-mail">
-                <button type="submit">Inscrever</button>
-            </form>
+    <section id="promo" class="promo-banner section-padding">
+        <div class="container promo-content scroll-reveal">
+            <div class="promo-text">
+                <h2>SETUP DOS SONHOS</h2>
+                <p>Monte o teu PC completo com 15% de desconto no Pix.</p>
+                <a href="#" class="btn-white">Conferir Oferta</a>
+            </div>
+            <div class="promo-img">
+                <img src="https://images.unsplash.com/photo-1593640408182-31c70c8268f5?w=800&auto=format&fit=crop" alt="PC Gamer">
+            </div>
         </div>
     </section>
 
     <footer>
-        <div class="footer-content">
-            <div class="footer-logo">VOGAN STORE</div>
-            <p>&copy; 2025 Vogan Store. Todos os direitos reservados.</p>
-            <div class="socials">
-                <a href="#"><i class="fa-brands fa-instagram"></i></a>
-                <a href="#"><i class="fa-brands fa-twitter"></i></a>
-                <a href="#"><i class="fa-brands fa-twitch"></i></a>
+        <div class="container">
+            <div class="footer-top">
+                <div class="logo">VOGAN<span>STORE</span></div>
+                <div class="socials">
+                    <a href="#"><i class="fa-brands fa-instagram"></i></a>
+                    <a href="#"><i class="fa-brands fa-tiktok"></i></a>
+                    <a href="#"><i class="fa-brands fa-twitter"></i></a>
+                </div>
             </div>
+            <p class="copyright">&copy; 2025 Vogan Store. Designed for Gamers.</p>
         </div>
     </footer>
 

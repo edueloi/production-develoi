@@ -1,389 +1,360 @@
-/* --- Variáveis e Reset --- */
+/* --- 1. Variáveis e Reset --- */
 :root {
-    --bg-main: #0f172a;       /* Azul Noite Profundo */
-    --bg-card: #1e293b;       /* Azul Ardósia */
-    --accent: #8b5cf6;        /* Roxo Vibrante */
-    --accent-glow: #a78bfa;   /* Roxo Claro para brilho */
-    --text-light: #f1f5f9;
-    --text-gray: #94a3b8;
-    --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    --font-main: 'Outfit', sans-serif;
-    --font-tech: 'Rajdhani', sans-serif;
+    --bg-body: #09090b;
+    --bg-card: #18181b;
+    --primary: #7c3aed; /* Roxo */
+    --secondary: #2dd4bf; /* Ciano */
+    --text-white: #fafafa;
+    --text-gray: #a1a1aa;
+    --gradient: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+    --font-main: 'Plus Jakarta Sans', sans-serif;
+    --font-title: 'Rajdhani', sans-serif;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    background-color: var(--bg-main);
-    color: var(--text-light);
+    background-color: var(--bg-body);
+    color: var(--text-white);
     font-family: var(--font-main);
-    overflow-x: hidden;
+    overflow-x: hidden; /* Evita scroll lateral */
 }
 
-/* --- Header & Nav --- */
-header {
-    background: rgba(15, 23, 42, 0.8);
-    backdrop-filter: blur(12px); /* Efeito de vidro fosco */
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    padding: 15px 5%;
+.container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+.section-padding { padding: 80px 0; }
+
+/* --- 2. Preloader (Tela de Carregamento) --- */
+#preloader {
     position: fixed;
-    width: 100%;
-    top: 0;
-    z-index: 1000;
-}
-
-nav {
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--bg-body);
+    z-index: 9999;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
+    transition: opacity 0.5s ease;
 }
 
-.logo {
-    font-family: var(--font-tech);
-    font-size: 1.8rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-}
-
-.logo span { color: var(--accent); }
-
-.nav-links {
-    list-style: none;
-    display: flex;
-    gap: 30px;
-}
-
-.nav-links a {
-    text-decoration: none;
-    color: var(--text-gray);
-    font-weight: 500;
-    transition: 0.3s;
-}
-
-.nav-links a:hover, .nav-links a.active { color: white; }
-
-.nav-icons {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
-
-/* Barra de pesquisa estilo moderno */
-.search-box {
-    background: rgba(255,255,255,0.05);
-    padding: 8px 15px;
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-.search-box input {
-    background: transparent;
-    border: none;
-    color: white;
-    outline: none;
-    width: 100px;
-    transition: 0.3s;
-}
-
-.search-box input:focus { width: 180px; } /* Expande ao clicar */
-.search-box i { color: var(--text-gray); }
-
-.cart-icon {
-    position: relative;
-    cursor: pointer;
-    font-size: 1.2rem;
-}
-
-.cart-icon span {
-    position: absolute;
-    top: -8px;
-    right: -10px;
-    background: var(--gradient);
-    font-size: 0.7rem;
-    padding: 2px 6px;
+.loader-content { text-align: center; }
+.loader-content h2 { font-family: var(--font-title); font-size: 2rem; margin-top: 15px; }
+.spinner {
+    width: 50px; height: 50px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top: 3px solid var(--secondary);
     border-radius: 50%;
+    margin: 0 auto;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- 3. Header e Navegação --- */
+header {
+    position: fixed; top: 0; width: 100%;
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    padding: 15px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-/* --- Hero Section --- */
-.hero {
-    min-height: 90vh;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10%;
-    padding-top: 80px;
+nav { display: flex; justify-content: space-between; align-items: center; }
+
+.logo { font-family: var(--font-title); font-size: 1.8rem; font-weight: 700; }
+.logo span { color: var(--primary); }
+
+.nav-links { list-style: none; display: flex; gap: 30px; }
+.nav-links a { text-decoration: none; color: var(--text-gray); font-weight: 500; transition: 0.3s; }
+.nav-links a:hover, .nav-links a.active { color: var(--text-white); }
+
+.nav-icons { display: flex; gap: 20px; align-items: center; font-size: 1.2rem; cursor: pointer; }
+.cart-box { position: relative; }
+.cart-count {
+    position: absolute; top: -8px; right: -8px;
+    background: var(--secondary); color: #000;
+    font-size: 0.7rem; font-weight: bold;
+    padding: 2px 5px; border-radius: 50%;
+}
+
+#mobile-btn, #close-menu { display: none; } /* Escondido no Desktop */
+
+/* --- 4. Hero Slider --- */
+.hero-slider {
+    height: 100vh;
     position: relative;
     overflow: hidden;
 }
 
-/* Bolha de luz de fundo */
-.hero::before {
-    content: '';
-    position: absolute;
-    top: -20%;
-    right: -10%;
-    width: 600px;
-    height: 600px;
-    background: var(--accent);
-    filter: blur(150px);
-    opacity: 0.2;
-    z-index: -1;
-}
-
-.hero-text { max-width: 500px; }
-
-.badge-new {
-    background: rgba(139, 92, 246, 0.2);
-    color: var(--accent-glow);
-    padding: 5px 12px;
-    border-radius: 15px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
-.hero h1 {
-    font-size: 3.5rem;
-    line-height: 1.1;
-    margin: 20px 0;
-    font-family: var(--font-tech);
-}
-
-.gradient-text {
-    background: var(--gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.hero p {
-    color: var(--text-gray);
-    margin-bottom: 30px;
-    font-size: 1.1rem;
-}
-
-.hero-buttons { display: flex; gap: 15px; }
-
-.btn-primary {
-    padding: 12px 30px;
-    background: var(--gradient);
-    color: white;
-    text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
-    transition: 0.3s;
-    box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
-}
-
-.btn-primary:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 15px 30px rgba(139, 92, 246, 0.5);
-}
-
-.btn-secondary {
-    padding: 12px 30px;
-    border: 1px solid rgba(255,255,255,0.2);
-    color: white;
-    text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
-    transition: 0.3s;
-}
-
-.btn-secondary:hover { background: rgba(255,255,255,0.1); }
-
-/* Animação do Icone Gigante */
-.hero-img {
-    font-size: 20rem;
-    color: rgba(255,255,255,0.05);
+.slide {
+    height: 100%; width: 100%;
+    background-size: cover; background-position: center;
+    display: flex; align-items: center;
     position: relative;
-    animation: float 6s ease-in-out infinite;
 }
 
-@keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-20px); }
-    100% { transform: translateY(0px); }
+/* Máscara escura sobre a imagem */
+.slide::before {
+    content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+    background: linear-gradient(90deg, #09090b 10%, transparent 100%);
 }
 
-/* --- Features Bar --- */
-.features {
-    display: flex;
-    justify-content: center;
-    gap: 50px;
-    padding: 40px 5%;
-    background: rgba(255,255,255,0.02);
-    flex-wrap: wrap;
+.slide-content { position: relative; z-index: 2; max-width: 600px; animation: fadeInUp 1s ease; }
+.tag { background: var(--primary); padding: 5px 10px; font-size: 0.8rem; font-weight: bold; border-radius: 4px; }
+.slide-content h1 { font-size: 4rem; font-family: var(--font-title); line-height: 1.1; margin: 20px 0; }
+
+.btn-gradient {
+    display: inline-block; padding: 12px 35px;
+    background: var(--gradient); color: white;
+    text-decoration: none; border-radius: 30px;
+    font-weight: bold; margin-top: 20px;
+    box-shadow: 0 10px 20px rgba(124, 58, 237, 0.3);
+    transition: transform 0.3s;
+}
+.btn-gradient:hover { transform: translateY(-5px); }
+
+/* --- 5. Categorias & Grid --- */
+.section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; }
+.section-header h2 { font-size: 2rem; font-family: var(--font-title); }
+.highlight { color: var(--primary); }
+.btn-link { color: var(--text-gray); text-decoration: none; transition: 0.3s; }
+.btn-link:hover { color: var(--primary); }
+
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
 }
 
-.feature-item {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    color: var(--text-gray);
+.cat-card {
+    background: var(--bg-card);
+    padding: 30px; border-radius: 15px;
+    text-align: center; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: 0.4s;
 }
+.cat-card:hover { background: var(--primary); transform: translateY(-5px); }
+.cat-card i { font-size: 2rem; margin-bottom: 10px; }
 
-.feature-item i {
-    font-size: 1.5rem;
-    color: var(--accent);
-}
-
-/* --- Produtos --- */
-.products-section { padding: 80px 10%; }
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 40px;
-}
-
-.section-header h2 { font-size: 2rem; font-family: var(--font-tech); }
-.view-all { color: var(--accent); text-decoration: none; }
-
+/* --- 6. Cards de Produto Top --- */
 .product-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 30px;
 }
 
 .product-card {
     background: var(--bg-card);
-    border-radius: 16px;
-    padding: 20px;
-    position: relative;
+    border-radius: 20px;
+    padding: 15px;
     transition: 0.4s;
-    border: 1px solid rgba(255,255,255,0.05);
+    position: relative;
     overflow: hidden;
 }
 
-.product-card:hover {
-    transform: translateY(-10px);
-    border-color: var(--accent);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-}
+.product-card:hover { transform: translateY(-10px); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 
-.badge-discount {
-    position: absolute;
-    top: 15px;
-    left: 15px;
-    background: #ef4444;
-    color: white;
-    font-size: 0.7rem;
-    font-weight: bold;
-    padding: 4px 8px;
-    border-radius: 4px;
+.img-box {
+    height: 250px; border-radius: 15px;
+    overflow: hidden; position: relative;
 }
+.img-box img { width: 100%; height: 100%; object-fit: cover; transition: 0.5s; }
+.product-card:hover img { transform: scale(1.1); }
 
-.card-img-wrapper {
-    height: 180px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.2);
-    border-radius: 10px;
-    margin-bottom: 20px;
-}
-
-.product-icon {
-    font-size: 5rem;
-    color: var(--text-gray);
+/* Botões que aparecem no hover */
+.action-btns {
+    position: absolute; bottom: -50px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 10px;
     transition: 0.4s;
 }
+.product-card:hover .action-btns { bottom: 20px; }
 
-.product-card:hover .product-icon {
-    color: white;
-    transform: scale(1.1);
+.action-btns button {
+    width: 40px; height: 40px; border-radius: 50%; border: none;
+    background: white; color: black; cursor: pointer;
+    font-size: 1rem; transition: 0.3s;
+}
+.action-btns button:hover { background: var(--primary); color: white; }
+
+.discount {
+    position: absolute; top: 10px; left: 10px;
+    background: #ef4444; color: white;
+    font-size: 0.7rem; padding: 4px 8px; border-radius: 4px;
+    z-index: 2;
 }
 
-.card-info h3 { font-size: 1.1rem; margin-bottom: 5px; }
-.category { color: var(--text-gray); font-size: 0.8rem; text-transform: uppercase; }
+.details { padding-top: 15px; }
+.cat-name { font-size: 0.8rem; color: var(--text-gray); }
+.details h3 { font-size: 1.1rem; margin: 5px 0; }
+.price .old { text-decoration: line-through; color: var(--text-gray); font-size: 0.9rem; margin-right: 10px; }
+.price .new { color: var(--secondary); font-weight: bold; font-size: 1.2rem; }
 
-.rating { color: #facc15; font-size: 0.8rem; margin: 10px 0; }
-
-.price-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 15px;
+/* --- 7. Promo Banner --- */
+.promo-banner { background: var(--bg-card); margin-top: 50px; }
+.promo-content {
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(45deg, #1e1b4b, #312e81);
+    border-radius: 20px; padding: 50px;
+    position: relative; overflow: hidden;
+}
+.promo-text { z-index: 2; max-width: 50%; }
+.promo-text h2 { font-family: var(--font-title); font-size: 3rem; margin-bottom: 10px; }
+.promo-img img { width: 400px; transform: rotate(-15deg); filter: drop-shadow(0 0 20px rgba(0,0,0,0.5)); }
+.btn-white {
+    display: inline-block; padding: 10px 25px;
+    background: white; color: black;
+    text-decoration: none; border-radius: 30px;
+    font-weight: bold; margin-top: 20px;
 }
 
-.price {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: white;
+/* --- 8. Footer --- */
+footer { background: #000; padding: 50px 0 20px; border-top: 1px solid #222; }
+.footer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+.socials a { color: var(--text-gray); font-size: 1.5rem; margin-left: 15px; transition: 0.3s; }
+.socials a:hover { color: var(--primary); }
+.copyright { text-align: center; font-size: 0.9rem; color: #555; }
+
+/* --- 9. Classes de Animação --- */
+.scroll-reveal { opacity: 0; transform: translateY(50px); transition: 0.8s; }
+.scroll-reveal.active { opacity: 1; transform: translateY(0); }
+
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+/* --- 10. RESPONSIVIDADE (MOBILE) --- */
+@media (max-width: 768px) {
+    /* Header Mobile */
+    #mobile-btn { display: block; }
+    #close-menu { display: block; position: absolute; top: 20px; right: 20px; font-size: 1.5rem; cursor: pointer; }
+    
+    .nav-wrapper {
+        position: fixed; top: 0; right: -100%; /* Escondido na direita */
+        width: 70%; height: 100vh;
+        background: rgba(9, 9, 11, 0.95);
+        backdrop-filter: blur(15px);
+        flex-direction: column; justify-content: center;
+        transition: 0.4s ease;
+        z-index: 999;
+        box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+    }
+    
+    .nav-wrapper.active { right: 0; /* Aparece */ }
+    .nav-links { flex-direction: column; align-items: center; gap: 40px; font-size: 1.2rem; }
+
+    /* Hero Mobile */
+    .hero-slider { height: 80vh; }
+    .slide-content h1 { font-size: 2.5rem; }
+    .slide-content p { font-size: 0.9rem; }
+    
+    /* Promo Mobile */
+    .promo-content { flex-direction: column; text-align: center; padding: 30px; }
+    .promo-text { max-width: 100%; margin-bottom: 30px; }
+    .promo-text h2 { font-size: 2rem; }
+    .promo-img img { width: 100%; max-width: 300px; transform: rotate(0); }
 }
+/* --- 10. RESPONSIVIDADE (MOBILE PRO) --- */
+@media (max-width: 768px) {
+    
+    /* Mostrar botões de controle do menu */
+    #mobile-btn { 
+        display: block; 
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: white;
+    }
 
-.btn-add {
-    width: 35px;
-    height: 35px;
-    border-radius: 50%;
-    border: none;
-    background: var(--bg-main);
-    color: white;
-    cursor: pointer;
-    transition: 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    #close-menu {
+        display: block;
+        position: absolute;
+        top: 25px;
+        right: 25px;
+        font-size: 2rem;
+        color: var(--text-gray);
+        cursor: pointer;
+        transition: 0.3s;
+        z-index: 10001; /* Garante que fica acima de tudo */
+    }
+
+    #close-menu:hover {
+        color: var(--secondary);
+        transform: rotate(90deg); /* Efeito giro ao passar o dedo/rato */
+    }
+    
+    /* O Container do Menu (A caixa preta) */
+    .nav-wrapper {
+        position: fixed;
+        top: 0;
+        right: -100%; /* Começa escondido fora da tela */
+        width: 85%;   /* Ocupa 85% da tela, deixando ver um pouco do fundo */
+        height: 100vh;
+        background: rgba(5, 5, 10, 0.98); /* Fundo quase preto sólido */
+        backdrop-filter: blur(20px);      /* Desfoque potente */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.5s cubic-bezier(0.77, 0, 0.175, 1); /* Movimento elástico suave */
+        z-index: 10000; /* Z-index altíssimo para cobrir o site */
+        box-shadow: -10px 0 40px rgba(0,0,0,0.8); /* Sombra na lateral */
+    }
+    
+    /* Quando o menu está ativo (Classe adicionada pelo JS) */
+    .nav-wrapper.active {
+        right: 0;
+    }
+
+    /* Estilo dos Links no Mobile */
+    .nav-links {
+        flex-direction: column;
+        align-items: center;
+        gap: 35px;
+        width: 100%;
+    }
+
+    .nav-links li {
+        width: 100%;
+        text-align: center;
+        opacity: 0; /* Começa invisível para animar depois */
+        transform: translateY(20px);
+        transition: all 0.5s ease;
+    }
+
+    .nav-links a {
+        font-size: 1.8rem; /* Letra grande estilo App */
+        font-family: var(--font-title);
+        font-weight: 700;
+        color: var(--text-white);
+        display: block;
+        padding: 10px;
+    }
+
+    .nav-links a:hover {
+        color: var(--primary);
+        letter-spacing: 2px; /* Espaça as letras ao tocar */
+    }
+    
+    /* Animação em Cascata (Delay para cada item) */
+    .nav-wrapper.active .nav-links li:nth-child(1) { transition-delay: 0.2s; opacity: 1; transform: translateY(0); }
+    .nav-wrapper.active .nav-links li:nth-child(2) { transition-delay: 0.3s; opacity: 1; transform: translateY(0); }
+    .nav-wrapper.active .nav-links li:nth-child(3) { transition-delay: 0.4s; opacity: 1; transform: translateY(0); }
+    .nav-wrapper.active .nav-links li:nth-child(4) { transition-delay: 0.5s; opacity: 1; transform: translateY(0); }
+
+    /* Ajustes Gerais para Mobile */
+    .hero-slider { height: 85vh; }
+    
+    .slide-content h1 { 
+        font-size: 2.8rem; 
+        padding: 0 15px;
+    }
+    
+    .promo-content { 
+        flex-direction: column; 
+        text-align: center; 
+        padding: 40px 20px; 
+    }
+    
+    .promo-img img { 
+        width: 100%; 
+        max-width: 280px; 
+        margin-top: 30px;
+        transform: rotate(0); 
+    }
 }
-
-.btn-add:hover {
-    background: var(--accent);
-}
-
-/* --- Newsletter --- */
-.newsletter {
-    padding: 80px 10%;
-    text-align: center;
-    background: linear-gradient(to top, rgba(139, 92, 246, 0.1), transparent);
-}
-
-.newsletter input {
-    padding: 12px 20px;
-    border-radius: 30px;
-    border: none;
-    width: 300px;
-    margin-top: 20px;
-}
-
-.newsletter button {
-    padding: 12px 30px;
-    border-radius: 30px;
-    border: none;
-    background: var(--accent);
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    margin-left: 10px;
-}
-
-/* --- Footer --- */
-footer {
-    background: #020617;
-    padding: 40px 10%;
-    text-align: center;
-    border-top: 1px solid rgba(255,255,255,0.05);
-}
-
-.footer-logo {
-    font-family: var(--font-tech);
-    font-size: 1.5rem;
-    margin-bottom: 15px;
-    color: var(--text-gray);
-}
-
-.socials {
-    margin-top: 20px;
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-}
-
-.socials a { color: var(--text-gray); font-size: 1.2rem; transition: 0.3s; }
-.socials a:hover { color: var(--accent); }
-
-/* --- Classes Utilitárias (Animações) --- */
-.hidden { opacity: 0; transform: translateY(30px); transition: all 0.8s ease; }
-.show { opacity: 1; transform: translateY(0); }

@@ -1,42 +1,70 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // --- 1. Efeito de Scroll Reveal (Aparecer suavemente) ---
-    const hiddenElements = document.querySelectorAll('.hidden');
+    // 1. Preloader (Tela de Carregamento)
+    const preloader = document.getElementById('preloader');
+    
+    window.addEventListener('load', () => {
+        // Aguarda meio segundo para sumir suavemente
+        setTimeout(() => {
+            preloader.style.opacity = '0';
+            setTimeout(() => {
+                preloader.style.display = 'none';
+            }, 500);
+        }, 500);
+    });
 
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('show');
+    // 2. Menu Mobile (Abrir e Fechar)
+    const mobileBtn = document.getElementById('mobile-btn');
+    const closeBtn = document.getElementById('close-menu');
+    const navWrapper = document.querySelector('.nav-wrapper');
+
+    mobileBtn.addEventListener('click', () => {
+        navWrapper.classList.add('active');
+    });
+
+    closeBtn.addEventListener('click', () => {
+        navWrapper.classList.remove('active');
+    });
+
+    // Fechar menu ao clicar num link
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.addEventListener('click', () => {
+            navWrapper.classList.remove('active');
+        });
+    });
+
+    // 3. Efeito de Scroll Reveal (Animar ao rolar)
+    const reveals = document.querySelectorAll('.scroll-reveal');
+
+    const revealOnScroll = () => {
+        const windowHeight = window.innerHeight;
+        const elementVisible = 150;
+
+        reveals.forEach((reveal) => {
+            const elementTop = reveal.getBoundingClientRect().top;
+            if (elementTop < windowHeight - elementVisible) {
+                reveal.classList.add('active');
             }
         });
-    }, {
-        threshold: 0.1 // Começa a animar quando 10% do item aparece
-    });
+    };
 
-    hiddenElements.forEach((el) => observer.observe(el));
+    window.addEventListener('scroll', revealOnScroll);
 
+    // 4. Lógica Simples do Carrinho
+    let cartCount = 0;
+    const cartDisplay = document.querySelector('.cart-count');
+    
+    // Função global para ser chamada no HTML
+    window.addCart = function() {
+        cartCount++;
+        cartDisplay.textContent = cartCount;
+        
+        // Pequena animação no ícone do carrinho
+        cartDisplay.parentElement.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+            cartDisplay.parentElement.style.transform = 'scale(1)';
+        }, 200);
 
-    // --- 2. Simulação de Carrinho ---
-    let contagem = 0;
-    const cartCountElement = document.getElementById('cart-count');
-    const botoesAdicionar = document.querySelectorAll('.btn-add');
-
-    // Função que roda quando clicas no botão "+"
-    botoesAdicionar.forEach(botao => {
-        botao.addEventListener('click', () => {
-            contagem++;
-            cartCountElement.innerText = contagem;
-            
-            // Efeito visual no botão (feedback de clique)
-            botao.style.transform = "scale(1.2)";
-            setTimeout(() => {
-                botao.style.transform = "scale(1)";
-            }, 200);
-        });
-    });
+        alert('Produto adicionado ao carrinho!');
+    };
 });
-
-// Função global para chamar no HTML se necessário
-function adicionarCarrinho() {
-    console.log("Produto adicionado!");
-}
