@@ -3,6 +3,7 @@
 // ESTOQUE - LÓGICA PHP (BACKEND)
 // ==========================================
 require_once '../../includes/banco-dados/db.php';
+$owner_id = $_SESSION['user_id'];
 include_once '../../includes/menu.php'; // Menu lateral
 
 $uploadDir = '../../assets/uploads/produtos/';
@@ -13,13 +14,13 @@ if (isset($_GET['api_acao']) && $_GET['api_acao'] === 'detalhes' && isset($_GET[
     $id = (int)$_GET['id'];
 
     // Produto
-    $stmt = $pdo->prepare("SELECT *, (SELECT SUM(estoque) FROM produtos_variacoes WHERE produto_id = produtos.id) AS estoque_total FROM produtos WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("SELECT *, (SELECT SUM(estoque) FROM produtos_variacoes WHERE produto_id = produtos.id AND owner_id = ?) AS estoque_total FROM produtos WHERE id = ? AND owner_id = ?");
+    $stmt->execute([$owner_id, $id, $owner_id]);
     $produto = $stmt->fetch(PDO::FETCH_ASSOC);
 
     // Variações
-    $stmtVar = $pdo->prepare("SELECT * FROM produtos_variacoes WHERE produto_id = ?");
-    $stmtVar->execute([$id]);
+    $stmtVar = $pdo->prepare("SELECT * FROM produtos_variacoes WHERE produto_id = ? AND owner_id = ?");
+    $stmtVar->execute([$id, $owner_id]);
     $variacoes = $stmtVar->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode(['produto' => $produto, 'variacoes' => $variacoes]);
@@ -27,8 +28,10 @@ if (isset($_GET['api_acao']) && $_GET['api_acao'] === 'detalhes' && isset($_GET[
 }
 
 // ---------------- DADOS GERAIS ----------------
-$sql = "SELECT p.*, (SELECT SUM(estoque) FROM produtos_variacoes WHERE produto_id = p.id) AS estoque_total FROM produtos p ORDER BY p.nome ASC";
-$produtos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+$sql = "SELECT p.*, (SELECT SUM(estoque) FROM produtos_variacoes WHERE produto_id = p.id AND owner_id = :owner_id) AS estoque_total FROM produtos p WHERE p.owner_id = :owner_id ORDER BY p.nome ASC";
+$stmtList = $pdo->prepare($sql);
+$stmtList->execute([':owner_id' => $owner_id]);
+$produtos = $stmtList->fetchAll(PDO::FETCH_ASSOC);
 
 // Cálculos
 $totalItens = 0;

@@ -5,6 +5,7 @@
 
 // Banco de dados primeiro (para API não vazar HTML)
 require_once '../../includes/banco-dados/db.php';
+$owner_id = $_SESSION['user_id'];
 
 // Diretório de upload de imagens dos produtos
 $uploadDir = '../../assets/uploads/produtos/';
@@ -21,13 +22,15 @@ if (isset($_GET['api_acao'])) {
         $id = (int)$_GET['id'];
 
         // Produto
-        $stmt = $pdo->prepare("SELECT * FROM produtos WHERE id = ?");
-        $stmt->execute([$id]);
+
+        // Produto
+        $stmt = $pdo->prepare("SELECT * FROM produtos WHERE id = ? AND owner_id = ?");
+        $stmt->execute([$id, $owner_id]);
         $prod = $stmt->fetch(PDO::FETCH_ASSOC);
 
         // Variações
-        $stmtVar = $pdo->prepare("SELECT * FROM produtos_variacoes WHERE produto_id = ?");
-        $stmtVar->execute([$id]);
+        $stmtVar = $pdo->prepare("SELECT * FROM produtos_variacoes WHERE produto_id = ? AND owner_id = ?");
+        $stmtVar->execute([$id, $owner_id]);
         $vars = $stmtVar->fetchAll(PDO::FETCH_ASSOC);
 
         // Galeria
@@ -91,8 +94,8 @@ if (isset($_GET['api_acao'])) {
             }
 
             // Banco: ON DELETE CASCADE já remove variações/galeria
-            $stmtDel = $pdo->prepare("DELETE FROM produtos WHERE id = ?");
-            $stmtDel->execute([$idProd]);
+            $stmtDel = $pdo->prepare("DELETE FROM produtos WHERE id = ? AND owner_id = ?");
+            $stmtDel->execute([$idProd, $owner_id]);
 
             $pdo->commit();
             echo json_encode(['success' => true]);
@@ -181,32 +184,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             if (!$id) $params[] = null;
         }
 
+
         if ($id) {
             // --- UPDATE ---
             $sql = "UPDATE produtos 
                     SET nome=?, marca=?, modelo=?, tipo_produto=?, codigo_barras=?, estoque_minimo=?, 
                         tem_validade=?, data_validade=?, ativo=?, auto_desativar=?, descricao=? 
                         $capaSql 
-                    WHERE id=?";
+                    WHERE id=? AND owner_id=?";
             $params[] = $id;
+            $params[] = $owner_id;
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             $produtoId = $id;
 
             // Limpa variações antigas (estratégia simples)
-            $pdo->prepare("DELETE FROM produtos_variacoes WHERE produto_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM produtos_variacoes WHERE produto_id = ? AND owner_id = ?")->execute([$id, $owner_id]);
         } else {
             // --- INSERT ---
             $stmt = $pdo->prepare("INSERT INTO produtos 
-                (nome, marca, modelo, tipo_produto, codigo_barras, estoque_minimo, tem_validade, data_validade, ativo, auto_desativar, descricao, imagem_capa) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (nome, marca, modelo, tipo_produto, codigo_barras, estoque_minimo, tem_validade, data_validade, ativo, auto_desativar, descricao, imagem_capa, owner_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $params[] = $owner_id;
             $stmt->execute($params);
             $produtoId = $pdo->lastInsertId();
         }
 
         // Salvar variações
         if (isset($_POST['var_cor'])) {
-            $stmtVar = $pdo->prepare("INSERT INTO produtos_variacoes (produto_id, cor, tamanho, peso, preco, estoque) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmtVar = $pdo->prepare("INSERT INTO produtos_variacoes (produto_id, cor, tamanho, peso, preco, estoque, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
             foreach ($_POST['var_cor'] as $key => $cor) {
                 $tam   = $_POST['var_tam'][$key];
                 $peso  = $_POST['var_peso'][$key];
@@ -214,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                 $preco = $_POST['var_preco'][$key];
 
                 if ($cor && $qtd !== '' && $preco !== '') {
-                    $stmtVar->execute([$produtoId, $cor, $tam, $peso, $preco, $qtd]);
+                    $stmtVar->execute([$produtoId, $cor, $tam, $peso, $preco, $qtd, $owner_id]);
                 }
             }
         }
@@ -254,10 +260,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
 // --- LISTAGEM ---
 $sql = "SELECT p.*, 
-            (SELECT SUM(estoque) FROM produtos_variacoes WHERE produto_id = p.id) as estoque_total 
+            (SELECT SUM(estoque) FROM produtos_variacoes WHERE produto_id = p.id AND owner_id = :owner_id) as estoque_total 
         FROM produtos p 
+        WHERE p.owner_id = :owner_id 
         ORDER BY p.id DESC";
-$listaProdutos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+$stmtLista = $pdo->prepare($sql);
+$stmtLista->execute([':owner_id' => $owner_id]);
+$listaProdutos = $stmtLista->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <style>
     :root { --primary-color: #6366f1; --bg-glass: rgba(255,255,255,0.9); }

@@ -2,21 +2,23 @@
 // ==========================================
 // RECIBO DE VENDA (CUPOM NÃO FISCAL)
 // ==========================================
+
 require_once '../../includes/banco-dados/db.php';
+$owner_id = $_SESSION['user_id'];
 
 if (!isset($_GET['id'])) die("Venda não especificada.");
 $id = (int)$_GET['id'];
 
 // Buscar Dados da Venda
-$stmt = $pdo->prepare("SELECT * FROM vendas WHERE id = ?");
-$stmt->execute([$id]);
+$stmt = $pdo->prepare("SELECT * FROM vendas WHERE id = ? AND owner_id = ?");
+$stmt->execute([$id, $owner_id]);
 $venda = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$venda) die("Venda não encontrada.");
 
 // Buscar Itens
-$stmtItens = $pdo->prepare("SELECT * FROM vendas_itens WHERE venda_id = ?");
-$stmtItens->execute([$id]);
+$stmtItens = $pdo->prepare("SELECT * FROM vendas_itens WHERE venda_id = ? AND owner_id = ?");
+$stmtItens->execute([$id, $owner_id]);
 $itens = $stmtItens->fetchAll(PDO::FETCH_ASSOC);
 
 // Configurações da Loja (Pode vir do banco futuramente)

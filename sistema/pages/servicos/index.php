@@ -3,13 +3,14 @@
 // 1. CONFIGURAÇÕES, BANCO E UPLOAD
 // ==========================================
 require_once '../../includes/banco-dados/db.php';
+$owner_id = $_SESSION['user_id'];
 include_once '../../includes/menu.php';
 
 // Pasta para salvar as imagens dos serviços
 $uploadDir = '../../assets/uploads/servicos/';
 if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
-// Cria tabela atualizada (com imagem e flag de site)
+// Cria tabela atualizada (com imagem, flag de site e owner_id)
 $pdo->exec("CREATE TABLE IF NOT EXISTS servicos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
@@ -20,6 +21,7 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS servicos (
     imagem TEXT,
     mostrar_site INTEGER DEFAULT 0,
     ativo INTEGER DEFAULT 1,
+    owner_id INTEGER NOT NULL DEFAULT 1,
     data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
 )");
 
@@ -64,21 +66,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             $params = [$nome, $categoria, $descricao, $duracao, $preco, $ativo, $mostrarSite];
             
             if ($nomeImagem) {
-                // Se enviou nova imagem, atualiza e pode apagar a antiga se quiser (opcional)
                 $sql .= ", imagem=?";
                 $params[] = $nomeImagem;
             }
-            
-            $sql .= " WHERE id=?";
+            $sql .= " WHERE id=? AND owner_id=?";
             $params[] = $id;
-            
+            $params[] = $owner_id;
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             $msgSucesso = "Serviço atualizado com sucesso!";
         } else {
             // INSERT
-            $stmt = $pdo->prepare("INSERT INTO servicos (nome, categoria, descricao, duracao_minutos, preco, ativo, mostrar_site, imagem) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$nome, $categoria, $descricao, $duracao, $preco, $ativo, $mostrarSite, $nomeImagem]);
+            $stmt = $pdo->prepare("INSERT INTO servicos (nome, categoria, descricao, duracao_minutos, preco, ativo, mostrar_site, imagem, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$nome, $categoria, $descricao, $duracao, $preco, $ativo, $mostrarSite, $nomeImagem, $owner_id]);
             $msgSucesso = "Serviço criado com sucesso!";
         }
 
@@ -92,13 +92,11 @@ if (isset($_GET['excluir'])) {
     try {
         $id = (int)$_GET['excluir'];
         // Pega imagem para deletar arquivo
-        $stmt = $pdo->prepare("SELECT imagem FROM servicos WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("SELECT imagem FROM servicos WHERE id = ? AND owner_id = ?");
+        $stmt->execute([$id, $owner_id]);
         $foto = $stmt->fetchColumn();
-        
         if($foto && file_exists($uploadDir.$foto)) unlink($uploadDir.$foto);
-
-        $pdo->prepare("DELETE FROM servicos WHERE id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM servicos WHERE id = ? AND owner_id = ?")->execute([$id, $owner_id]);
         $msgSucesso = "Serviço removido!";
     } catch (Exception $e) {
         $msgErro = "Erro ao excluir.";
@@ -109,15 +107,13 @@ if (isset($_GET['excluir'])) {
 // 3. BUSCAR DADOS
 // ==========================================
 $busca = trim($_GET['busca'] ?? '');
-$sql = "SELECT * FROM servicos WHERE 1=1";
-$params = [];
-
+$sql = "SELECT * FROM servicos WHERE owner_id = ?";
+$params = [$owner_id];
 if ($busca) {
     $sql .= " AND (nome LIKE ? OR categoria LIKE ?)";
     $params[] = "%$busca%";
     $params[] = "%$busca%";
 }
-
 $sql .= " ORDER BY nome ASC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);

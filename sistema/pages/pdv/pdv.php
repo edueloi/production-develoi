@@ -110,15 +110,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 // ==========================================
 // 3. DADOS INICIAIS
 // ==========================================
+// Filtrar produtos e clientes pelo owner_id do usuário logado
+$owner_id = $_SESSION['user_id'];
+
 $sqlProd = "SELECT p.id, p.nome, p.marca, p.modelo, p.imagem_capa, 
             v.id as var_id, v.cor, v.tamanho, v.estoque 
             FROM produtos p 
             JOIN produtos_variacoes v ON v.produto_id = p.id 
-            WHERE p.ativo = 1 AND v.estoque > 0
+            WHERE p.ativo = 1 AND v.estoque > 0 AND p.owner_id = :owner_id
             ORDER BY p.nome";
-$produtos = $pdo->query($sqlProd)->fetchAll(PDO::FETCH_ASSOC);
+$stmtProd = $pdo->prepare($sqlProd);
+$stmtProd->execute([':owner_id' => $owner_id]);
+$produtos = $stmtProd->fetchAll(PDO::FETCH_ASSOC);
 
-$clientes = $pdo->query("SELECT id, nome, cpf FROM clientes ORDER BY nome")->fetchAll(PDO::FETCH_ASSOC);
+$stmtCli = $pdo->prepare("SELECT id, nome, cpf FROM clientes WHERE owner_id = :owner_id ORDER BY nome");
+$stmtCli->execute([':owner_id' => $owner_id]);
+$clientes = $stmtCli->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>

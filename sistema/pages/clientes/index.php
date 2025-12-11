@@ -3,6 +3,7 @@
 // CLIENTES - LÓGICA PHP (BACKEND)
 // ==========================================
 require_once '../../includes/banco-dados/db.php';
+$owner_id = $_SESSION['user_id'];
 include_once '../../includes/menu.php';
 
 // 1. GARANTIR TABELAS
@@ -50,8 +51,8 @@ if (isset($_GET['api_acao'])) {
             (SELECT COUNT(*) FROM clientes_compras cc WHERE cc.cliente_id = c.id) AS qtd_compras,
             (SELECT COALESCE(SUM(valor_total), 0) FROM clientes_compras cc WHERE cc.cliente_id = c.id) AS total_gasto,
             (SELECT MAX(data_compra) FROM clientes_compras cc WHERE cc.cliente_id = c.id) AS ultima_compra
-            FROM clientes c WHERE c.id = ?");
-        $stmt->execute([$id]);
+            FROM clientes c WHERE c.id = ? AND c.owner_id = ?");
+        $stmt->execute([$id, $owner_id]);
         $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
 
         $stmtC = $pdo->prepare("SELECT * FROM clientes_compras WHERE cliente_id = ? ORDER BY data_compra DESC LIMIT 50");
@@ -65,7 +66,7 @@ if (isset($_GET['api_acao'])) {
     // Excluir
     if ($_GET['api_acao'] === 'del_cliente' && isset($_GET['id'])) {
         $id = (int)$_GET['id'];
-        $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM clientes WHERE id = ? AND owner_id = ?")->execute([$id, $owner_id]);
         echo json_encode(['success' => true]);
         exit;
     }
@@ -83,11 +84,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     ];
 
     if ($id) {
-        $sql = "UPDATE clientes SET nome=?, apelido=?, telefone=?, whatsapp=?, email=?, cpf=?, rg=?, data_nascimento=?, cep=?, logradouro=?, numero=?, complemento=?, bairro=?, cidade=?, uf=?, observacoes=?, ativo=? WHERE id=?";
+        $sql = "UPDATE clientes SET nome=?, apelido=?, telefone=?, whatsapp=?, email=?, cpf=?, rg=?, data_nascimento=?, cep=?, logradouro=?, numero=?, complemento=?, bairro=?, cidade=?, uf=?, observacoes=?, ativo=? WHERE id=? AND owner_id=?";
         $dados[] = $id;
+        $dados[] = $owner_id;
         $pdo->prepare($sql)->execute($dados);
     } else {
-        $sql = "INSERT INTO clientes (nome, apelido, telefone, whatsapp, email, cpf, rg, data_nascimento, cep, logradouro, numero, complemento, bairro, cidade, uf, observacoes, ativo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        $sql = "INSERT INTO clientes (nome, apelido, telefone, whatsapp, email, cpf, rg, data_nascimento, cep, logradouro, numero, complemento, bairro, cidade, uf, observacoes, ativo, owner_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        $dados[] = $owner_id;
         $pdo->prepare($sql)->execute($dados);
     }
     // Refresh simples para limpar POST
@@ -96,8 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 }
 
 // 4. LISTAGEM DASHBOARD
-$sql = "SELECT c.*, (SELECT MAX(data_compra) FROM clientes_compras WHERE cliente_id = c.id) as ultima_compra FROM clientes c ORDER BY c.nome ASC";
-$clientes = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+$sql = "SELECT c.*, (SELECT MAX(data_compra) FROM clientes_compras WHERE cliente_id = c.id) as ultima_compra FROM clientes c WHERE c.owner_id = :owner_id ORDER BY c.nome ASC";
+$stmtList = $pdo->prepare($sql);
+$stmtList->execute([':owner_id' => $owner_id]);
+$clientes = $stmtList->fetchAll(PDO::FETCH_ASSOC);
 
 // Métricas
 $total = count($clientes);
