@@ -577,14 +577,16 @@ foreach($produtos as $key => $p) {
     }
 
     // --- EDITAR ---
+
     async function editar(id) {
         resetForm();
-        document.getElementById('containerVariacoes').innerHTML = ''; // Limpa a linha padrão
-        
+        document.getElementById('containerVariacoes').innerHTML = '';
         try {
             const res = await fetch(`?api_acao=get_produto&id=${id}`);
+            if (!res.ok) throw new Error('Erro ao buscar produto');
             const data = await res.json();
             const p = data.produto;
+            if (!p) throw new Error('Produto não encontrado');
 
             document.getElementById('inpId').value = p.id;
             document.getElementById('inpNome').value = p.nome;
@@ -596,26 +598,30 @@ foreach($produtos as $key => $p) {
             document.getElementById('inpVenda').value = p.preco_venda;
             document.getElementById('inpMin').value = p.estoque_minimo;
 
-            if(data.variacoes.length > 0) {
+            if(data.variacoes && data.variacoes.length > 0) {
                 data.variacoes.forEach(v => addVarRow(v.cor, v.tamanho, v.peso, v.estoque, v.preco_venda));
             } else {
                 addVarRow();
             }
 
             const galDiv = document.getElementById('galeriaExistente');
-            data.galeria.forEach(g => {
-                galDiv.innerHTML += `
-                    <div style="position:relative;">
-                        <img src="../../assets/uploads/produtos/${g.caminho_imagem}" style="width:60px; height:60px; border-radius:6px; object-fit:cover;">
-                        <button type="button" onclick="delImg(${g.id}, this)" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px;">X</button>
-                    </div>
-                `;
-            });
+            if(data.galeria && data.galeria.length > 0) {
+                data.galeria.forEach(g => {
+                    galDiv.innerHTML += `
+                        <div style="position:relative;">
+                            <img src="../../assets/uploads/produtos/${g.caminho_imagem}" style="width:60px; height:60px; border-radius:6px; object-fit:cover;">
+                            <button type="button" onclick="delImg(${g.id}, this)" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px;">X</button>
+                        </div>
+                    `;
+                });
+            }
 
             document.getElementById('modalTitle').innerText = 'Editar Produto #' + id;
             document.getElementById('modalProduto').classList.add('open');
-
-        } catch(e) { console.error(e); }
+        } catch(e) {
+            alert('Erro ao carregar dados do produto para edição.');
+            console.error(e);
+        }
     }
 
     async function delImg(id, btn) {
