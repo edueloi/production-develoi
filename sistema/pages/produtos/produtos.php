@@ -421,6 +421,13 @@ foreach($produtos as $key => $p) {
                         <input type="text" name="nome" id="inpNome" class="input-control" placeholder="Ex: Camiseta Nike Branca" required>
                     </div>
                     <div>
+                        <label>Status</label>
+                        <select name="ativo" id="inpAtivo" class="input-control">
+                            <option value="1">Ativo</option>
+                            <option value="0">Inativo</option>
+                        </select>
+                    </div>
+                    <div>
                         <label>Marca</label>
                         <input type="text" name="marca" id="inpMarca" class="input-control">
                     </div>
@@ -525,6 +532,7 @@ foreach($produtos as $key => $p) {
     // --- WIZARD ---
     function resetForm() {
         document.getElementById('formProd').reset();
+        if(document.getElementById('inpAtivo')) document.getElementById('inpAtivo').value = '1';
         document.getElementById('inpId').value = '';
         document.getElementById('containerVariacoes').innerHTML = '';
         document.getElementById('galeriaExistente').innerHTML = '';
@@ -590,6 +598,9 @@ foreach($produtos as $key => $p) {
 
             document.getElementById('inpId').value = p.id;
             document.getElementById('inpNome').value = p.nome;
+            if (typeof p.ativo !== 'undefined' && document.getElementById('inpAtivo')) {
+                document.getElementById('inpAtivo').value = p.ativo;
+            }
             document.getElementById('inpMarca').value = p.marca;
             document.getElementById('inpModelo').value = p.modelo;
             document.getElementById('inpCod').value = p.codigo_barras;
