@@ -3,9 +3,11 @@
 // RECIBO DE VENDA (CUPOM NÃO FISCAL)
 // ==========================================
 
+session_start();
 require_once '../../includes/banco-dados/db.php';
-$owner_id = $_SESSION['user_id'];
+$owner_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 
+if (!$owner_id) die("Usuário não autenticado.");
 if (!isset($_GET['id'])) die("Venda não especificada.");
 $id = (int)$_GET['id'];
 

@@ -1,191 +1,179 @@
 <?php
 // ==========================================
-// 1. CONFIG E LÓGICA PHP
+// 1. LÓGICA DE BACKEND (API + BANCO)
 // ==========================================
-require_once '../../includes/banco-dados/db.php';
-include_once '../../includes/menu.php';
+// Inicia buffer para garantir que nenhum HTML "vaze" antes do JSON da API
+ob_start();
 
+
+// Evita avisos de variável indefinida
+$msgSucesso = '';
+$msgErro = '';
+
+require_once '../../includes/banco-dados/db.php';
+
+// Diretório de uploads
 $uploadDir = '../../assets/uploads/produtos/';
 if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
-// --- AUTO-CORREÇÃO DO BANCO (Garante que as colunas existem) ---
-try {
-
-    // Tenta criar tabela produtos se não existir
-    $pdo->exec("CREATE TABLE IF NOT EXISTS produtos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        marca TEXT,
-        modelo TEXT,
-        tipo_produto TEXT,
-        codigo_barras TEXT,
-        estoque_minimo INTEGER DEFAULT 5,
-        preco_custo REAL DEFAULT 0,
-        preco_venda REAL DEFAULT 0,
-        tem_validade INTEGER DEFAULT 0,
-        data_validade DATE,
-        ativo INTEGER DEFAULT 1,
-        auto_desativar INTEGER DEFAULT 0,
-        descricao TEXT,
-        imagem_capa TEXT,
-        data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
-
-    // Tenta adicionar colunas de preço caso a tabela seja antiga
-    // O '@' suprime o erro se a coluna já existir
-    @$pdo->exec("ALTER TABLE produtos ADD COLUMN preco_custo REAL DEFAULT 0");
-    @$pdo->exec("ALTER TABLE produtos ADD COLUMN preco_venda REAL DEFAULT 0");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_variacoes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        produto_id INTEGER,
-        cor TEXT,
-        tamanho TEXT,
-        peso REAL,
-        estoque INTEGER DEFAULT 0,
-        preco_venda REAL DEFAULT 0,
-        FOREIGN KEY(produto_id) REFERENCES produtos(id) ON DELETE CASCADE
-    )");
-    @$pdo->exec("ALTER TABLE produtos_variacoes ADD COLUMN preco_venda REAL DEFAULT 0");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_galeria (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        produto_id INTEGER,
-        caminho_imagem TEXT,
-        FOREIGN KEY(produto_id) REFERENCES produtos(id) ON DELETE CASCADE
-    )");
-
-    // --- AUTO-CORREÇÃO PARA owner_id EM servicos ---
-    $pdo->exec("CREATE TABLE IF NOT EXISTS servicos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT
-        -- outras colunas serão adicionadas conforme necessário
-    )");
-    // Adiciona a coluna owner_id se não existir
-    @$pdo->exec("ALTER TABLE servicos ADD COLUMN owner_id INTEGER");
-
-} catch (Exception $e) {
-    // Ignora erros de coluna existente
-}
-
-// --- API INTERNA (JSON PARA O JAVASCRIPT) ---
+// --- API JSON (Processamento Silencioso) ---
 if (isset($_GET['api_acao'])) {
+    // Limpa qualquer saída anterior (como espaços ou HTML de includes acidentais)
+    ob_end_clean();
     header('Content-Type: application/json; charset=utf-8');
 
-    // Buscar dados para editar
-    if ($_GET['api_acao'] === 'get_produto') {
-        $id = (int)$_GET['id'];
-        $prod = $pdo->query("SELECT * FROM produtos WHERE id = $id")->fetch(PDO::FETCH_ASSOC);
-        $vars = $pdo->query("SELECT * FROM produtos_variacoes WHERE produto_id = $id")->fetchAll(PDO::FETCH_ASSOC);
-        $imgs = $pdo->query("SELECT * FROM produtos_galeria WHERE produto_id = $id")->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['produto' => $prod, 'variacoes' => $vars, 'galeria' => $imgs]);
-        exit;
-    }
+    try {
+        // A. BUSCAR DADOS
+        if ($_GET['api_acao'] === 'get_produto') {
+            $id = (int)$_GET['id'];
+            $prod = $pdo->query("SELECT * FROM produtos WHERE id = $id")->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$prod) throw new Exception("Produto não encontrado.");
 
-    // Excluir imagem da galeria
-    if ($_GET['api_acao'] === 'del_imagem') {
-        $id = (int)$_GET['id'];
-        $img = $pdo->query("SELECT caminho_imagem FROM produtos_galeria WHERE id = $id")->fetchColumn();
-        if ($img && file_exists($uploadDir.$img)) unlink($uploadDir.$img);
-        $pdo->query("DELETE FROM produtos_galeria WHERE id = $id");
-        echo json_encode(['success' => true]);
-        exit;
-    }
+            $vars = $pdo->query("SELECT * FROM produtos_variacoes WHERE produto_id = $id")->fetchAll(PDO::FETCH_ASSOC);
+            $imgs = $pdo->query("SELECT * FROM produtos_galeria WHERE produto_id = $id")->fetchAll(PDO::FETCH_ASSOC);
 
-    // Excluir Produto Inteiro
-    if ($_GET['api_acao'] === 'del_produto') {
-        $id = (int)$_GET['id'];
-        
-        // Apaga capa
-        $capa = $pdo->query("SELECT imagem_capa FROM produtos WHERE id = $id")->fetchColumn();
-        if($capa && file_exists($uploadDir.$capa)) unlink($uploadDir.$capa);
-
-        // Apaga galeria
-        $galeria = $pdo->query("SELECT caminho_imagem FROM produtos_galeria WHERE produto_id = $id")->fetchAll(PDO::FETCH_COLUMN);
-        foreach($galeria as $foto) {
-            if(file_exists($uploadDir.$foto)) unlink($uploadDir.$foto);
+            echo json_encode(['success' => true, 'produto' => $prod, 'variacoes' => $vars, 'galeria' => $imgs]);
+            exit;
         }
 
-        // Remove do banco (Cascade remove variações e galeria, mas garantimos o delete do produto)
-        $pdo->query("DELETE FROM produtos WHERE id = $id");
-        echo json_encode(['success' => true]);
+        // B. EXCLUIR IMAGEM
+        if ($_GET['api_acao'] === 'del_imagem') {
+            $id = (int)$_GET['id'];
+            $img = $pdo->query("SELECT caminho_imagem FROM produtos_galeria WHERE id = $id")->fetchColumn();
+            if ($img && file_exists($uploadDir.$img)) @unlink($uploadDir.$img);
+            $pdo->query("DELETE FROM produtos_galeria WHERE id = $id");
+            echo json_encode(['success' => true]);
+            exit;
+        }
+
+        // C. EXCLUIR PRODUTO
+        if ($_GET['api_acao'] === 'del_produto') {
+            $id = (int)$_GET['id'];
+            $capa = $pdo->query("SELECT imagem_capa FROM produtos WHERE id = $id")->fetchColumn();
+            if($capa && file_exists($uploadDir.$capa)) @unlink($uploadDir.$capa);
+            
+            $galeria = $pdo->query("SELECT caminho_imagem FROM produtos_galeria WHERE produto_id = $id")->fetchAll(PDO::FETCH_COLUMN);
+            foreach($galeria as $f) { if(file_exists($uploadDir.$f)) @unlink($uploadDir.$f); }
+
+            $pdo->query("DELETE FROM produtos WHERE id = $id");
+            echo json_encode(['success' => true]);
+            exit;
+        }
+
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
     }
     exit;
 }
 
-// --- PROCESSAR SALVAMENTO (POST) ---
+// --- HTML E INTERFACE COMEÇAM AQUI ---
+// Só incluímos o menu DEPOIS de garantir que não é uma chamada de API
+include_once '../../includes/menu.php';
+
+// AUTO-CORREÇÃO DE TABELAS (Prevenção de erros)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS produtos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        marca TEXT, modelo TEXT, tipo_produto TEXT, codigo_barras TEXT,
+        estoque_minimo INTEGER DEFAULT 5,
+        preco_custo REAL DEFAULT 0, preco_venda REAL DEFAULT 0,
+        tem_validade INTEGER DEFAULT 0, data_validade DATE,
+        ativo INTEGER DEFAULT 1, auto_desativar INTEGER DEFAULT 0,
+        descricao TEXT, imagem_capa TEXT, data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Updates de segurança para colunas novas
+    @$pdo->exec("ALTER TABLE produtos ADD COLUMN preco_custo REAL DEFAULT 0");
+    @$pdo->exec("ALTER TABLE produtos ADD COLUMN preco_venda REAL DEFAULT 0");
+    
+    $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_variacoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        produto_id INTEGER, cor TEXT, tamanho TEXT, peso REAL,
+        estoque INTEGER DEFAULT 0, preco_venda REAL DEFAULT 0,
+        FOREIGN KEY(produto_id) REFERENCES produtos(id) ON DELETE CASCADE
+    )");
+    @$pdo->exec("ALTER TABLE produtos_variacoes ADD COLUMN preco_venda REAL DEFAULT 0");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS produtos_galeria (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, produto_id INTEGER, caminho_imagem TEXT,
+        FOREIGN KEY(produto_id) REFERENCES produtos(id) ON DELETE CASCADE
+    )");
+} catch (Exception $e) {}
+
+// --- SALVAR (POST FORM) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'salvar') {
     try {
         $pdo->beginTransaction();
         $id = !empty($_POST['id_produto']) ? (int)$_POST['id_produto'] : null;
 
-        // Limpa valor monetário
-        function limpaMoeda($val) {
-            if(empty($val)) return 0;
-            return (float)str_replace(',', '.', str_replace('.', '', $val));
-        }
+        function limpaVal($v) { return (float)str_replace(['.',','], ['','.'], $v); } // Ex: 1.200,00 -> 1200.00
 
-        // Dados do form
-        $nome       = $_POST['nome'] ?? 'Sem Nome';
+        // Campos
+        $nome       = $_POST['nome'];
         $marca      = $_POST['marca'] ?? '';
         $modelo     = $_POST['modelo'] ?? '';
         $tipo       = $_POST['tipo'] ?? 'fisico';
         $cod        = $_POST['cod_barras'] ?? '';
         $est_min    = (int)($_POST['est_min'] ?? 0);
-        $preco_custo= limpaMoeda($_POST['preco_custo']);
-        $preco_venda= limpaMoeda($_POST['preco_venda']);
+        $custo      = limpaVal($_POST['preco_custo'] ?? '0');
+        $venda      = limpaVal($_POST['preco_venda'] ?? '0');
         $validade   = isset($_POST['tem_validade']) ? 1 : 0;
         $dt_val     = $_POST['data_validade'] ?: null;
         $ativo      = isset($_POST['ativo']) ? 1 : 0;
         $auto_des   = isset($_POST['auto_desativar']) ? 1 : 0;
         $desc       = $_POST['descricao'] ?? '';
 
-        // Capa
-        $capaSql = ""; 
-        $params = [$nome, $marca, $modelo, $tipo, $cod, $est_min, $preco_custo, $preco_venda, $validade, $dt_val, $ativo, $auto_des, $desc];
+        // Query Base
+        $sqlCapa = "";
+        $params = [$nome, $marca, $modelo, $tipo, $cod, $est_min, $custo, $venda, $validade, $dt_val, $ativo, $auto_des, $desc];
 
+        // Upload Capa
         if (!empty($_FILES['imagem_capa']['name'])) {
             $ext = pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION);
             $novoNome = uniqid('capa_') . '.' . $ext;
             if (move_uploaded_file($_FILES['imagem_capa']['tmp_name'], $uploadDir . $novoNome)) {
-                if ($id) { $capaSql = ", imagem_capa = ?"; $params[] = $novoNome; }
-                else { $params[] = $novoNome; }
+                if ($id) {
+                    $sqlCapa = ", imagem_capa=?";
+                    $params[] = $novoNome;
+                    // Apagar antiga
+                    $old = $pdo->query("SELECT imagem_capa FROM produtos WHERE id=$id")->fetchColumn();
+                    if($old && file_exists($uploadDir.$old)) @unlink($uploadDir.$old);
+                } else {
+                    $params[] = $novoNome;
+                }
             }
         } else {
-            if (!$id) $params[] = null;
+            if (!$id) $params[] = null; // Insert sem capa
         }
 
         if ($id) {
-            $sql = "UPDATE produtos SET nome=?, marca=?, modelo=?, tipo_produto=?, codigo_barras=?, estoque_minimo=?, preco_custo=?, preco_venda=?, tem_validade=?, data_validade=?, ativo=?, auto_desativar=?, descricao=? $capaSql WHERE id=?";
             $params[] = $id;
-            $pdo->prepare($sql)->execute($params);
+            $pdo->prepare("UPDATE produtos SET nome=?, marca=?, modelo=?, tipo_produto=?, codigo_barras=?, estoque_minimo=?, preco_custo=?, preco_venda=?, tem_validade=?, data_validade=?, ativo=?, auto_desativar=?, descricao=? $sqlCapa WHERE id=?")->execute($params);
             $produtoId = $id;
-            // Limpa variações para recriar
-            $pdo->prepare("DELETE FROM produtos_variacoes WHERE produto_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM produtos_variacoes WHERE produto_id=?")->execute([$id]);
         } else {
-            $sql = "INSERT INTO produtos (nome, marca, modelo, tipo_produto, codigo_barras, estoque_minimo, preco_custo, preco_venda, tem_validade, data_validade, ativo, auto_desativar, descricao, imagem_capa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+            // Ajusta query para insert dependendo se teve capa ou não
+            if(count($params) > 13) 
+                $sql = "INSERT INTO produtos (nome,marca,modelo,tipo_produto,codigo_barras,estoque_minimo,preco_custo,preco_venda,tem_validade,data_validade,ativo,auto_desativar,descricao,imagem_capa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+            else 
+                $sql = "INSERT INTO produtos (nome,marca,modelo,tipo_produto,codigo_barras,estoque_minimo,preco_custo,preco_venda,tem_validade,data_validade,ativo,auto_desativar,descricao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
+            
             $pdo->prepare($sql)->execute($params);
             $produtoId = $pdo->lastInsertId();
         }
 
-        // Salvar Variações
+        // Variações
         if (isset($_POST['var_cor'])) {
             $stmtV = $pdo->prepare("INSERT INTO produtos_variacoes (produto_id, cor, tamanho, peso, estoque, preco_venda) VALUES (?,?,?,?,?,?)");
             foreach ($_POST['var_cor'] as $k => $cor) {
-                // Se não preencheu preço na variação, usa o geral
-                $vPreco = !empty($_POST['var_preco'][$k]) ? limpaMoeda($_POST['var_preco'][$k]) : $preco_venda;
-                $stmtV->execute([
-                    $produtoId, 
-                    $cor, 
-                    $_POST['var_tam'][$k], 
-                    $_POST['var_peso'][$k], 
-                    (int)$_POST['var_qtd'][$k],
-                    $vPreco
-                ]);
+                $vp = !empty($_POST['var_preco'][$k]) ? limpaVal($_POST['var_preco'][$k]) : $venda;
+                $stmtV->execute([$produtoId, $cor, $_POST['var_tam'][$k], $_POST['var_peso'][$k], (int)$_POST['var_qtd'][$k], $vp]);
             }
         }
 
-        // Salvar Galeria
+        // Galeria
         if (!empty($_FILES['galeria']['name'][0])) {
             $stmtG = $pdo->prepare("INSERT INTO produtos_galeria (produto_id, caminho_imagem) VALUES (?,?)");
             $total = count($_FILES['galeria']['name']);
@@ -206,34 +194,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     }
 }
 
-// --- DADOS DO DASHBOARD ---
+// --- DADOS DASHBOARD ---
 $produtos = $pdo->query("SELECT * FROM produtos ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
+$totalItens = 0; $valorTotal = 0; $maiorEstoque = ['nome'=>'-','qtd'=>0];
 
-$totalItens = 0;
-$valorTotalEstoque = 0;
-$prodMaisEstoque = ['nome' => '-', 'qtd' => 0];
-
-foreach($produtos as $key => $p) {
-    // Busca soma das variações
-    $soma = $pdo->query("SELECT SUM(estoque) as qtd, SUM(estoque * preco_venda) as val FROM produtos_variacoes WHERE produto_id = {$p['id']}")->fetch(PDO::FETCH_ASSOC);
+foreach($produtos as $k => $p) {
+    $soma = $pdo->query("SELECT SUM(estoque) as q, SUM(estoque * preco_venda) as v FROM produtos_variacoes WHERE produto_id = {$p['id']}")->fetch();
+    $q = (int)$soma['q']; 
+    $v = (float)($soma['v'] ?? ($q * $p['preco_venda']));
     
-    $qtd = (int)($soma['qtd'] ?? 0);
-    // Se não tiver variação, assume estoque 0 ou implementa lógica para estoque pai se quiseres
-    // Aqui assumimos que o estoque está sempre nas variações (como pedido antes)
-    
-    // Se quiseres permitir produto sem variação com estoque:
-    // if($qtd == 0 && empty($soma['qtd'])) { $qtd = ...; } 
-
-    $val = (float)($soma['val'] ?? ($qtd * $p['preco_venda'])); 
-
-    $produtos[$key]['estoque_total'] = $qtd;
-    
-    $totalItens += $qtd;
-    $valorTotalEstoque += $val;
-
-    if($qtd > $prodMaisEstoque['qtd']) {
-        $prodMaisEstoque = ['nome' => $p['nome'], 'qtd' => $qtd];
-    }
+    $produtos[$k]['estoque_total'] = $q;
+    $totalItens += $q;
+    $valorTotal += $v;
+    if($q > $maiorEstoque['qtd']) $maiorEstoque = ['nome'=>$p['nome'], 'qtd'=>$q];
 }
 ?>
 
@@ -241,122 +214,218 @@ foreach($produtos as $key => $p) {
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Gestão de Produtos</title>
+    <title>Produtos - Lumina ERP</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
     <style>
+        /* ESTILO LUMINA ERP (Fundo claro, sidebar escura que vem do menu.php) */
         :root {
             --primary: #6366f1;
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --text: #0f172a;
-            --muted: #64748b;
+            --primary-dark: #4f46e5;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --bg-body: #f3f4f6; /* Cinza claro de fundo */
+            --card-bg: #ffffff;
             --border: #e2e8f0;
+            --radius: 12px;
         }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); margin:0; padding-bottom:40px; }
-        
-        main { max-width: 1300px; margin: 30px auto; padding: 0 20px; }
-        
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-        .header h1 { font-size: 1.8rem; font-weight: 700; margin: 0; }
-        
-        .btn-primary { 
-            background: var(--primary); color: white; padding: 12px 24px; 
-            border-radius: 8px; border: none; font-weight: 600; cursor: pointer; 
-            display: flex; gap: 8px; align-items: center; transition: 0.2s; 
-        }
-        .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
 
-        /* KPI Cards */
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .kpi-card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .kpi-label { font-size: 0.85rem; color: var(--muted); font-weight: 500; margin-bottom: 5px; }
-        .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--text); }
-        .kpi-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-bottom: 15px; }
-        
-        /* Tabela */
-        .card-table { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); }
-        .filters { padding: 20px; border-bottom: 1px solid var(--border); }
-        .search-input { width: 100%; max-width: 300px; padding: 10px 15px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
-        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            padding-bottom: 40px;
+        }
+
+        main {
+            max-width: 1400px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        /* HEADER */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+        }
+        .page-header h1 { margin: 0; font-size: 1.6rem; font-weight: 700; color: #0f172a; }
+        .page-header p { margin: 4px 0 0; color: var(--text-muted); font-size: 0.95rem; }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px -1px rgba(99,102,241,0.25);
+            transition: 0.2s;
+        }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+        /* KPI CARDS (Estilo Dashboard) */
+        .kpi-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .kpi-card {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: var(--radius);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .kpi-icon {
+            width: 44px; height: 44px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; margin-bottom: 8px;
+        }
+        .kpi-title { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .kpi-value { font-size: 1.8rem; font-weight: 700; color: #0f172a; letter-spacing: -0.5px; }
+
+        /* TABELA DE PRODUTOS */
+        .content-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+            overflow: hidden;
+        }
+
+        .filter-bar {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background: #fcfcfc;
+        }
+        .search-input {
+            width: 100%;
+            max-width: 350px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            outline: none;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            background: white;
+            transition: 0.2s;
+        }
+        .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px 20px; background: #f9fafb; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border); }
-        td { padding: 15px 20px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-        tr:hover { background: #fcfcfc; }
-        .prod-img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); background: #eee; }
+        th { text-align: left; padding: 14px 20px; background: #f8fafc; color: #64748b; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border); }
+        td { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #334155; font-size: 0.9rem; }
+        tr:hover { background: #fdfdfd; }
         
-        /* Modais */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(2px); }
-        .modal-overlay.open { display: flex; }
-        .modal-box { background: white; width: 95%; max-width: 800px; border-radius: 16px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; }
+
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .st-ativo { background: #dcfce7; color: #166534; }
+        .st-inativo { background: #fee2e2; color: #991b1b; }
+
+        .btn-action {
+            width: 32px; height: 32px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 6px; border: 1px solid transparent;
+            color: #64748b; cursor: pointer; transition: 0.2s; background: transparent;
+        }
+        .btn-action:hover { background: #f1f5f9; color: var(--primary); }
+        .btn-action.del:hover { background: #fef2f2; color: #ef4444; }
+
+        /* MODAL */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; animation: fadeUp 0.2s ease-out; }
         
-        .modal-header { padding: 20px 30px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 30px; overflow-y: auto; flex: 1; }
-        .modal-footer { padding: 20px 30px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; background: #fff; border-radius: 0 0 16px 16px; }
+        .modal-box { background: white; width: 95%; max-width: 750px; border-radius: 16px; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h3 { margin: 0; font-size: 1.2rem; color: #0f172a; }
+        
+        .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; background: #f8fafc; border-radius: 0 0 16px 16px; }
 
-        .wizard-steps { display: flex; gap: 30px; padding: 15px 30px; background: #f9fafb; border-bottom: 1px solid var(--border); }
-        .step-btn { background: none; border: none; font-weight: 600; color: var(--muted); cursor: pointer; padding-bottom: 5px; border-bottom: 2px solid transparent; transition: 0.2s; }
-        .step-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
-        .step-content { display: none; animation: fadeIn 0.3s; }
-        .step-content.active { display: block; }
+        /* WIZARD NO MODAL */
+        .steps { display: flex; gap: 20px; padding: 12px 24px; border-bottom: 1px solid var(--border); background: #fbfbfc; }
+        .step-item { font-size: 0.85rem; font-weight: 600; color: #94a3b8; cursor: pointer; padding-bottom: 8px; border-bottom: 2px solid transparent; transition: 0.2s; }
+        .step-item.active { color: var(--primary); border-bottom-color: var(--primary); }
+        
+        .step-content { display: none; }
+        .step-content.active { display: block; animation: fadeUp 0.3s; }
 
-        /* Form */
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        /* FORMS */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
         .full { grid-column: span 2; }
-        label { display: block; margin-bottom: 6px; font-size: 0.9rem; font-weight: 500; color: var(--text); }
-        .input-control { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; box-sizing: border-box; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+        .input-control { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; font-size: 0.95rem; box-sizing: border-box; }
         .input-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px #e0e7ff; }
-        
-        .btn-nav { padding: 10px 20px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; color: var(--text); }
-        .btn-nav:hover { background: #f8fafc; }
-        .btn-save { background: var(--primary); color: white; border: none; }
-        .btn-del { border: 1px solid #fee2e2; background: #fff; color: #ef4444; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-        .btn-del:hover { background: #fef2f2; }
 
-        .var-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 40px; gap: 10px; align-items: center; margin-bottom: 10px; }
-        
-        @keyframes fadeIn { from { opacity:0; transform: translateY(5px); } to { opacity:1; transform: translateY(0); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
 <main>
-    <div class="header">
+    <div class="page-header">
         <div>
             <h1>Produtos</h1>
-            <p style="color:var(--muted)">Gestão completa de estoque e preços</p>
+            <p>Gerencie inventário, preços e variações.</p>
         </div>
-        <button class="btn-primary" onclick="openModalNovo()">+ Novo Produto</button>
+        <button class="btn-primary" onclick="openModalNovo()">
+            <i class="bi bi-plus-lg"></i> Novo Produto
+        </button>
     </div>
 
-    <div class="kpi-grid">
+    <?php if($msgSucesso): ?>
+        <div style="padding:15px; background:#dcfce7; color:#166534; border-radius:8px; margin-bottom:20px; border:1px solid #bbf7d0;">
+            <i class="bi bi-check-circle-fill"></i> <?php echo $msgSucesso; ?>
+        </div>
+    <?php endif; ?>
+    <?php if($msgErro): ?>
+        <div style="padding:15px; background:#fee2e2; color:#991b1b; border-radius:8px; margin-bottom:20px; border:1px solid #fecaca;">
+            <i class="bi bi-exclamation-triangle-fill"></i> <?php echo $msgErro; ?>
+        </div>
+    <?php endif; ?>
+
+    <div class="kpi-container">
         <div class="kpi-card">
-            <div class="kpi-icon" style="background:#e0e7ff; color:#4f46e5"><i class="bi bi-box-seam"></i></div>
-            <div class="kpi-label">Total de Itens</div>
-            <div class="kpi-value"><?php echo $totalItens; ?> <small style="font-size:1rem">un</small></div>
+            <div class="kpi-icon" style="background:#e0e7ff; color:var(--primary)"><i class="bi bi-box-seam"></i></div>
+            <div class="kpi-title">Total de Itens</div>
+            <div class="kpi-value"><?php echo $totalItens; ?> <small style="font-size:1rem; font-weight:500">un</small></div>
         </div>
         <div class="kpi-card">
             <div class="kpi-icon" style="background:#dcfce7; color:#166534"><i class="bi bi-currency-dollar"></i></div>
-            <div class="kpi-label">Valor em Estoque</div>
-            <div class="kpi-value">R$ <?php echo number_format($valorTotalEstoque, 2, ',', '.'); ?></div>
+            <div class="kpi-title">Valor em Estoque</div>
+            <div class="kpi-value">R$ <?php echo number_format($valorTotal, 2, ',', '.'); ?></div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-icon" style="background:#fef9c3; color:#854d0e"><i class="bi bi-star"></i></div>
-            <div class="kpi-label">Maior Estoque</div>
-            <div class="kpi-value" style="font-size:1.4rem"><?php echo $prodMaisEstoque['nome']; ?></div>
+            <div class="kpi-icon" style="background:#fff7ed; color:#c2410c"><i class="bi bi-graph-up-arrow"></i></div>
+            <div class="kpi-title">Maior Estoque</div>
+            <div class="kpi-value" style="font-size:1.4rem"><?php echo $maiorEstoque['nome']; ?></div>
         </div>
     </div>
 
-    <div class="card-table">
-        <div class="filters">
-            <input type="text" id="filtro" class="search-input" placeholder="Pesquisar produto..." onkeyup="filtrarTabela()">
+    <div class="content-card">
+        <div class="filter-bar">
+            <input type="text" id="busca" class="search-input" placeholder="Pesquisar produto..." onkeyup="filtrar()">
         </div>
-        <div style="overflow-x:auto">
-            <table id="tabelaProdutos">
+        <div style="overflow-x:auto;">
+            <table id="tblProd">
                 <thead>
                     <tr>
-                        <th width="70">Img</th>
+                        <th width="70">Capa</th>
                         <th>Produto</th>
                         <th>Preço Venda</th>
                         <th>Estoque</th>
@@ -367,27 +436,25 @@ foreach($produtos as $key => $p) {
                 <tbody>
                     <?php foreach($produtos as $p): 
                         $img = !empty($p['imagem_capa']) ? $uploadDir.$p['imagem_capa'] : 'https://via.placeholder.com/60?text=IMG';
-                        $status = $p['ativo'] ? ['Ativo','success'] : ['Inativo','danger'];
+                        $status = $p['ativo'] ? ['Ativo','st-ativo'] : ['Inativo','st-inativo'];
                     ?>
                     <tr>
-                        <td><img src="<?php echo $img; ?>" class="prod-img"></td>
+                        <td><img src="<?php echo $img; ?>" class="thumb"></td>
                         <td>
                             <div style="font-weight:600"><?php echo htmlspecialchars($p['nome']); ?></div>
-                            <div style="font-size:0.8rem; color:var(--muted)"><?php echo htmlspecialchars($p['marca']); ?></div>
+                            <div style="font-size:0.8rem; color:#94a3b8;"><?php echo htmlspecialchars($p['marca'].' '.$p['modelo']); ?></div>
                         </td>
                         <td>
                             R$ <?php echo number_format($p['preco_venda'], 2, ',', '.'); ?>
                             <?php if($p['preco_custo'] > 0): ?>
-                                <div style="font-size:0.75rem; color:var(--muted)">Custo: <?php echo number_format($p['preco_custo'], 2, ',', '.'); ?></div>
+                                <div style="font-size:0.75rem; color:#94a3b8;">Custo: <?php echo number_format($p['preco_custo'], 2, ',', '.'); ?></div>
                             <?php endif; ?>
                         </td>
-                        <td>
-                            <div style="font-weight:700"><?php echo $p['estoque_total']; ?> un</div>
-                        </td>
-                        <td><span style="padding:4px 8px; border-radius:20px; font-size:0.75rem; background:var(--bs-<?php echo $status[1]; ?>-bg-subtle); color:var(--bs-<?php echo $status[1]; ?>)"><?php echo $status[0]; ?></span></td>
+                        <td><strong><?php echo $p['estoque_total']; ?></strong> un</td>
+                        <td><span class="status-badge <?php echo $status[1]; ?>"><?php echo $status[0]; ?></span></td>
                         <td style="text-align:right">
-                            <button onclick="editar(<?php echo $p['id']; ?>)" style="border:1px solid #ddd; background:white; border-radius:6px; width:32px; height:32px; cursor:pointer;"><i class="bi bi-pencil"></i></button>
-                            <button onclick="abrirModalDelete(<?php echo $p['id']; ?>, '<?php echo addslashes($p['nome']); ?>')" style="border:1px solid #fee2e2; background:white; border-radius:6px; width:32px; height:32px; cursor:pointer; color:#ef4444; margin-left:5px;"><i class="bi bi-trash"></i></button>
+                            <button class="btn-action" onclick="editar(<?php echo $p['id']; ?>)"><i class="bi bi-pencil"></i></button>
+                            <button class="btn-action del" onclick="confirmarDel(<?php echo $p['id']; ?>, '<?php echo addslashes($p['nome']); ?>')"><i class="bi bi-trash"></i></button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -397,48 +464,32 @@ foreach($produtos as $key => $p) {
     </div>
 </main>
 
-<div class="modal-overlay" id="modalProduto">
-    <form class="modal-box" method="POST" enctype="multipart/form-data" id="formProd">
+<div class="modal-overlay" id="modalProd">
+    <form class="modal-box" method="POST" enctype="multipart/form-data" id="formP">
         <input type="hidden" name="acao" value="salvar">
         <input type="hidden" name="id_produto" id="inpId">
 
         <div class="modal-header">
-            <h3 id="modalTitle">Novo Produto</h3>
-            <button type="button" onclick="fecharModal('modalProduto')" style="border:none; background:none; font-size:1.5rem; cursor:pointer">&times;</button>
+            <h3 id="mTitle">Novo Produto</h3>
+            <button type="button" class="btn-action" onclick="fecharModal()" style="font-size:1.5rem;">&times;</button>
         </div>
 
-        <div class="wizard-steps">
-            <button type="button" class="step-btn active" onclick="goStep(1)">1. Dados Básicos</button>
-            <button type="button" class="step-btn" onclick="goStep(2)">2. Preços e Estoque</button>
-            <button type="button" class="step-btn" onclick="goStep(3)">3. Fotos</button>
+        <div class="steps">
+            <div class="step-item active" onclick="goStep(1)" id="st1">1. Dados Básicos</div>
+            <div class="step-item" onclick="goStep(2)" id="st2">2. Preço & Estoque</div>
+            <div class="step-item" onclick="goStep(3)" id="st3">3. Imagens</div>
         </div>
 
         <div class="modal-body">
-            <div class="step-content active" id="step1">
+            <div class="step-content active" id="conteudo1">
                 <div class="form-grid">
                     <div class="full">
-                        <label>Nome do Produto (Obrigatório)</label>
-                        <input type="text" name="nome" id="inpNome" class="input-control" placeholder="Ex: Camiseta Nike Branca" required>
+                        <label>Nome do Produto *</label>
+                        <input type="text" name="nome" id="inpNome" class="input-control" required placeholder="Ex: Camiseta Básica">
                     </div>
-                    <div>
-                        <label>Status</label>
-                        <select name="ativo" id="inpAtivo" class="input-control">
-                            <option value="1">Ativo</option>
-                            <option value="0">Inativo</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Marca</label>
-                        <input type="text" name="marca" id="inpMarca" class="input-control">
-                    </div>
-                    <div>
-                        <label>Modelo</label>
-                        <input type="text" name="modelo" id="inpModelo" class="input-control">
-                    </div>
-                    <div>
-                        <label>Código Barras</label>
-                        <input type="text" name="cod_barras" id="inpCod" class="input-control">
-                    </div>
+                    <div><label>Marca</label><input type="text" name="marca" id="inpMarca" class="input-control"></div>
+                    <div><label>Modelo</label><input type="text" name="modelo" id="inpModelo" class="input-control"></div>
+                    <div><label>Cód. Barras</label><input type="text" name="cod_barras" id="inpCod" class="input-control"></div>
                     <div>
                         <label>Tipo</label>
                         <select name="tipo" id="inpTipo" class="input-control">
@@ -453,154 +504,137 @@ foreach($produtos as $key => $p) {
                 </div>
             </div>
 
-            <div class="step-content" id="step2">
-                <div class="form-grid" style="margin-bottom:20px; background:#f9fafb; padding:15px; border-radius:8px;">
-                    <div>
-                        <label>Preço de Custo (R$)</label>
-                        <input type="text" name="preco_custo" id="inpCusto" class="input-control" placeholder="0,00">
-                    </div>
-                    <div>
-                        <label>Preço de Venda (R$)</label>
-                        <input type="text" name="preco_venda" id="inpVenda" class="input-control" placeholder="0,00">
-                    </div>
-                    <div>
-                        <label>Estoque Mínimo (Alerta)</label>
-                        <input type="number" name="est_min" id="inpMin" class="input-control" value="5">
-                    </div>
+            <div class="step-content" id="conteudo2">
+                <div class="form-grid" style="background:#f8fafc; padding:15px; border-radius:12px; margin-bottom:20px; border:1px solid var(--border);">
+                    <div><label>Preço Custo (R$)</label><input type="text" name="preco_custo" id="inpCusto" class="input-control" placeholder="0,00"></div>
+                    <div><label>Preço Venda (R$)</label><input type="text" name="preco_venda" id="inpVenda" class="input-control" placeholder="0,00"></div>
+                    <div><label>Estoque Mínimo</label><input type="number" name="est_min" id="inpMin" class="input-control" value="5"></div>
                 </div>
-
-                <label>Variações (Cor, Tamanho, etc)</label>
-                <div id="containerVariacoes"></div>
-                <button type="button" onclick="addVarRow()" style="margin-top:10px; background:white; border:1px dashed var(--primary); color:var(--primary); width:100%; padding:10px; border-radius:8px; cursor:pointer;">+ Adicionar Variação</button>
+                
+                <h4 style="margin:0 0 10px 0; font-size:1rem;">Variações (Cor, Tamanho)</h4>
+                <div id="boxVars"></div>
+                <button type="button" onclick="addVar()" style="width:100%; padding:10px; border:1px dashed var(--primary); background:white; color:var(--primary); border-radius:8px; cursor:pointer; font-weight:600; margin-top:10px;">
+                    <i class="bi bi-plus"></i> Adicionar Variação
+                </button>
             </div>
 
-            <div class="step-content" id="step3">
+            <div class="step-content" id="conteudo3">
                 <label>Foto de Capa</label>
-                <input type="file" name="imagem_capa" class="input-control" accept="image/*" style="margin-bottom:20px;">
-                
-                <label>Galeria (Mais fotos)</label>
+                <input type="file" name="imagem_capa" class="input-control" accept="image/*" style="margin-bottom:15px;">
+                <div id="previewCapa" style="margin-bottom:20px;"></div>
+
+                <label>Galeria (Várias fotos)</label>
                 <input type="file" name="galeria[]" class="input-control" multiple accept="image/*">
-                
-                <div id="galeriaExistente" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:20px;"></div>
+                <div id="boxGaleria" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:15px;"></div>
             </div>
         </div>
 
         <div class="modal-footer">
-            <button type="button" class="btn-nav" id="btnVoltar" onclick="nav(-1)" style="visibility:hidden">Voltar</button>
+            <button type="button" class="btn-primary" style="background:white; color:#64748b; border:1px solid #cbd5e1;" onclick="nav(-1)" id="btnVoltar">Voltar</button>
             <div>
-                <button type="button" class="btn-nav" id="btnAvancar" onclick="nav(1)">Próximo</button>
-                <button type="submit" class="btn-nav btn-save" id="btnSalvar" style="display:none">Salvar Produto</button>
+                <button type="button" class="btn-primary" id="btnAvancar" onclick="nav(1)">Próximo</button>
+                <button type="submit" class="btn-primary" id="btnSalvar" style="display:none; background:#10b981;">Salvar Produto</button>
             </div>
         </div>
     </form>
 </div>
 
-<div class="modal-overlay" id="modalDelete">
-    <div class="modal-box" style="max-width:400px;">
-        <div class="modal-header">
-            <h3>Excluir Produto</h3>
-            <button type="button" onclick="fecharModal('modalDelete')" style="border:none; background:none; font-size:1.5rem; cursor:pointer">&times;</button>
-        </div>
+<div class="modal-overlay" id="modalDel">
+    <div class="modal-box" style="max-width:400px; height:auto;">
+        <div class="modal-header"><h3>Excluir Produto</h3></div>
         <div class="modal-body">
-            <p>Tem certeza que deseja excluir o produto abaixo?</p>
-            <h4 id="delProdName" style="margin:10px 0; color:var(--primary);"></h4>
-            <small style="color:red">Essa ação é irreversível.</small>
+            <p>Tem certeza que deseja excluir <b id="delName"></b>?</p>
+            <small style="color:red">Esta ação é irreversível.</small>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn-nav" onclick="fecharModal('modalDelete')">Cancelar</button>
-            <button type="button" class="btn-nav btn-del" style="background:#ef4444; color:white; border:none;" onclick="confirmarExclusao()">Excluir</button>
+            <button type="button" class="btn-primary" style="background:white; color:#333; border:1px solid #ddd;" onclick="document.getElementById('modalDel').classList.remove('open')">Cancelar</button>
+            <button type="button" class="btn-primary" style="background:#ef4444;" onclick="execDelete()">Excluir</button>
         </div>
     </div>
 </div>
 
 <script>
-    let currentStep = 1;
-    const totalSteps = 3;
-    let deleteId = null;
+    let step = 1;
+    let delId = null;
+    const modal = document.getElementById('modalProd');
+    const uploadPath = '<?php echo $uploadDir; ?>';
 
-    // --- MODAIS ---
     function openModalNovo() {
-        resetForm();
-        document.getElementById('modalTitle').innerText = 'Novo Produto';
-        document.getElementById('modalProduto').classList.add('open');
-    }
-
-    function fecharModal(id) {
-        document.getElementById(id).classList.remove('open');
-    }
-
-    // --- WIZARD ---
-    function resetForm() {
-        document.getElementById('formProd').reset();
-        if(document.getElementById('inpAtivo')) document.getElementById('inpAtivo').value = '1';
+        document.getElementById('formP').reset();
         document.getElementById('inpId').value = '';
-        document.getElementById('containerVariacoes').innerHTML = '';
-        document.getElementById('galeriaExistente').innerHTML = '';
-        addVarRow(); // adiciona uma linha vazia por padrão
-        currentStep = 1;
-        updateWizard();
+        document.getElementById('boxVars').innerHTML = '';
+        document.getElementById('boxGaleria').innerHTML = '';
+        document.getElementById('previewCapa').innerHTML = '';
+        document.getElementById('mTitle').innerText = 'Novo Produto';
+        addVar(); // Adiciona linha vazia
+        goStep(1);
+        modal.classList.add('open');
     }
 
-    function nav(dir) {
-        currentStep += dir;
-        updateWizard();
-    }
+    function fecharModal() { modal.classList.remove('open'); }
+
+    // WIZARD
+    function nav(dir) { goStep(step + dir); }
     function goStep(n) {
-        currentStep = n;
-        updateWizard();
-    }
-
-    function updateWizard() {
-        for(let i=1; i<=totalSteps; i++) {
-            document.getElementById('step'+i).classList.remove('active');
-            document.querySelectorAll('.step-btn')[i-1].classList.remove('active');
-        }
-        document.getElementById('step'+currentStep).classList.add('active');
-        document.querySelectorAll('.step-btn')[currentStep-1].classList.add('active');
-
-        document.getElementById('btnVoltar').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+        if(n<1 || n>3) return;
+        step = n;
         
-        if(currentStep === totalSteps) {
+        // Atualiza abas
+        document.querySelectorAll('.step-item').forEach((el, i) => {
+            el.classList.toggle('active', (i+1)===step);
+        });
+        // Atualiza conteúdo
+        document.querySelectorAll('.step-content').forEach((el, i) => {
+            el.classList.toggle('active', (i+1)===step);
+        });
+
+        // Botões
+        document.getElementById('btnVoltar').style.visibility = step === 1 ? 'hidden' : 'visible';
+        if(step === 3) {
             document.getElementById('btnAvancar').style.display = 'none';
-            document.getElementById('btnSalvar').style.display = 'block';
+            document.getElementById('btnSalvar').style.display = 'flex';
         } else {
-            document.getElementById('btnAvancar').style.display = 'block';
+            document.getElementById('btnAvancar').style.display = 'flex';
             document.getElementById('btnSalvar').style.display = 'none';
         }
     }
 
-    // --- VARIAÇÕES ---
-    function addVarRow(cor='', tam='', peso='', qtd='', preco='') {
+    // VARIAÇÕES
+    function addVar(cor='', tam='', peso='', qtd='', pr='') {
         const div = document.createElement('div');
-        div.className = 'var-row';
+        div.style.cssText = "display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr 40px; gap:8px; align-items:center; margin-bottom:8px;";
         div.innerHTML = `
-            <input type="text" name="var_cor[]" class="input-control" placeholder="Cor (Ex: Azul)" value="${cor}">
-            <input type="text" name="var_tam[]" class="input-control" placeholder="Tam" value="${tam}">
-            <input type="text" name="var_peso[]" class="input-control" placeholder="Peso" value="${peso}">
-            <input type="number" name="var_qtd[]" class="input-control" placeholder="Qtd" value="${qtd}">
-            <input type="text" name="var_preco[]" class="input-control" placeholder="Preço (Opc)" value="${preco}">
-            <button type="button" onclick="this.parentElement.remove()" style="color:red; border:none; background:none; cursor:pointer;"><i class="bi bi-trash"></i></button>
+            <input name="var_cor[]" value="${cor}" placeholder="Cor" class="input-control">
+            <input name="var_tam[]" value="${tam}" placeholder="Tam" class="input-control">
+            <input name="var_peso[]" value="${peso}" placeholder="Kg" class="input-control">
+            <input name="var_qtd[]" value="${qtd}" placeholder="Qtd" type="number" class="input-control">
+            <input name="var_preco[]" value="${pr}" placeholder="R$" class="input-control">
+            <button type="button" onclick="this.parentElement.remove()" style="color:red; border:none; background:none; cursor:pointer; font-size:1.2rem;">&times;</button>
         `;
-        document.getElementById('containerVariacoes').appendChild(div);
+        document.getElementById('boxVars').appendChild(div);
     }
 
-    // --- EDITAR ---
-
+    // EDITAR
     async function editar(id) {
-        resetForm();
-        document.getElementById('containerVariacoes').innerHTML = '';
+        // Limpa form antes de abrir
+        document.getElementById('formP').reset();
+        document.getElementById('boxVars').innerHTML = '';
+        document.getElementById('previewCapa').innerHTML = '';
+        document.getElementById('boxGaleria').innerHTML = '';
+        
         try {
-            const res = await fetch(`?api_acao=get_produto&id=${id}`);
-            if (!res.ok) throw new Error('Erro ao buscar produto');
-            const data = await res.json();
-            const p = data.produto;
-            if (!p) throw new Error('Produto não encontrado');
-
-            document.getElementById('inpId').value = p.id;
-            document.getElementById('inpNome').value = p.nome;
-            if (typeof p.ativo !== 'undefined' && document.getElementById('inpAtivo')) {
-                document.getElementById('inpAtivo').value = p.ativo;
+            const req = await fetch('?api_acao=get_produto&id='+id);
+            const res = await req.json();
+            
+            if(!res.success) {
+                alert('Erro: ' + (res.error || 'Falha ao buscar dados'));
+                return;
             }
+            
+            const p = res.produto;
+            document.getElementById('inpId').value = p.id;
+            document.getElementById('mTitle').innerText = 'Editar: ' + p.nome;
+            document.getElementById('inpNome').value = p.nome;
             document.getElementById('inpMarca').value = p.marca;
             document.getElementById('inpModelo').value = p.modelo;
             document.getElementById('inpCod').value = p.codigo_barras;
@@ -609,59 +643,63 @@ foreach($produtos as $key => $p) {
             document.getElementById('inpVenda').value = p.preco_venda;
             document.getElementById('inpMin').value = p.estoque_minimo;
 
-            if(data.variacoes && data.variacoes.length > 0) {
-                data.variacoes.forEach(v => addVarRow(v.cor, v.tamanho, v.peso, v.estoque, v.preco_venda));
+            // Capa
+            if(p.imagem_capa) {
+                document.getElementById('previewCapa').innerHTML = `<img src="${uploadPath}${p.imagem_capa}" style="height:100px; border-radius:8px; border:1px solid #ddd;">`;
+            }
+
+            // Variações
+            if(res.variacoes.length) {
+                res.variacoes.forEach(v => addVar(v.cor, v.tamanho, v.peso, v.estoque, v.preco_venda));
             } else {
-                addVarRow();
+                addVar();
             }
 
-            const galDiv = document.getElementById('galeriaExistente');
-            if(data.galeria && data.galeria.length > 0) {
-                data.galeria.forEach(g => {
-                    galDiv.innerHTML += `
-                        <div style="position:relative;">
-                            <img src="../../assets/uploads/produtos/${g.caminho_imagem}" style="width:60px; height:60px; border-radius:6px; object-fit:cover;">
-                            <button type="button" onclick="delImg(${g.id}, this)" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px;">X</button>
-                        </div>
-                    `;
-                });
-            }
+            // Galeria
+            const boxG = document.getElementById('boxGaleria');
+            res.galeria.forEach(g => {
+                const d = document.createElement('div');
+                d.style.position = 'relative';
+                d.innerHTML = `
+                    <img src="${uploadPath}${g.caminho_imagem}" style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid #ddd;">
+                    <button type="button" onclick="delImg(${g.id}, this)" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px;">X</button>
+                `;
+                boxG.appendChild(d);
+            });
+            
+            goStep(1);
+            modal.classList.add('open');
 
-            document.getElementById('modalTitle').innerText = 'Editar Produto #' + id;
-            document.getElementById('modalProduto').classList.add('open');
         } catch(e) {
-            alert('Erro ao carregar dados do produto para edição.');
             console.error(e);
+            alert('Erro de conexão com o servidor.');
         }
     }
 
-    async function delImg(id, btn) {
-        if(confirm('Apagar foto?')) {
-            await fetch(`?api_acao=del_imagem&id=${id}`);
-            btn.parentElement.remove();
-        }
+    async function delImg(id, el) {
+        if(!confirm('Apagar foto?')) return;
+        await fetch('?api_acao=del_imagem&id='+id);
+        el.parentElement.remove();
     }
 
-    // --- EXCLUIR ---
-    function abrirModalDelete(id, nome) {
-        deleteId = id;
-        document.getElementById('delProdName').innerText = nome;
-        document.getElementById('modalDelete').classList.add('open');
+    function confirmarDel(id, nome) {
+        delId = id;
+        document.getElementById('delName').innerText = nome;
+        document.getElementById('modalDel').classList.add('open');
     }
 
-    async function confirmarExclusao() {
-        if(!deleteId) return;
-        const res = await fetch(`?api_acao=del_produto&id=${deleteId}`);
-        const data = await res.json();
-        if(data.success) location.reload();
+    async function execDelete() {
+        if(!delId) return;
+        const req = await fetch('?api_acao=del_produto&id='+delId);
+        const res = await req.json();
+        if(res.success) location.reload();
         else alert('Erro ao excluir');
     }
 
-    function filtrarTabela() {
-        const termo = document.getElementById('filtro').value.toLowerCase();
-        const rows = document.querySelectorAll('#tabelaProdutos tbody tr');
-        rows.forEach(r => {
-            r.style.display = r.innerText.toLowerCase().includes(termo) ? '' : 'none';
+    function filtrar() {
+        const term = document.getElementById('busca').value.toLowerCase();
+        document.querySelectorAll('#tblProd tbody tr').forEach(r => {
+            r.style.display = r.innerText.toLowerCase().includes(term) ? '' : 'none';
         });
     }
 </script>

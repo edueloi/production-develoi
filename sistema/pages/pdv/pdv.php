@@ -126,11 +126,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
 // --- DADOS PARA O FRONTEND ---
 // 1. Produtos
-$sqlProd = "SELECT p.id, p.nome, p.marca, p.imagem_capa, p.preco_venda as preco, 
-            v.id as var_id, v.cor, v.tamanho, v.estoque, v.preco_venda as var_preco 
-            FROM produtos p 
-            JOIN produtos_variacoes v ON v.produto_id = p.id 
-            WHERE p.ativo = 1 AND v.estoque > 0
+
+// Buscar todos produtos ativos, mesmo sem variação ou com estoque 0
+$sqlProd = "SELECT p.id, p.nome, p.marca, p.imagem_capa, p.preco_venda as preco,
+            v.id as var_id, v.cor, v.tamanho, v.estoque, v.preco_venda as var_preco
+            FROM produtos p
+            LEFT JOIN produtos_variacoes v ON v.produto_id = p.id
+            WHERE p.ativo = 1
             ORDER BY p.nome";
 $produtos = $pdo->query($sqlProd)->fetchAll(PDO::FETCH_ASSOC);
 
